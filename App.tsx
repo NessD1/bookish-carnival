@@ -76,11 +76,18 @@ const MainAppContent: React.FC = () => {
   );
 };
 
+/** Reads themeTrigger from context and remounts MainAppContent when it changes,
+ *  forcing all StyleSheet.create() calls to re-run with updated theme.colors. */
+const ThemeRemounter: React.FC = () => {
+  const { themeTrigger } = useApp();
+  return <MainAppContent key={themeTrigger} />;
+};
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <AppProvider>
-        <MainAppContent />
+        <ThemeRemounter />
       </AppProvider>
     </SafeAreaProvider>
   );

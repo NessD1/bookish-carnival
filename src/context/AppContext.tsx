@@ -19,6 +19,7 @@ interface AppContextType {
   switchRole: (role: UserRole) => void;
   themeMode: 'dark' | 'light';
   isDark: boolean;
+  themeTrigger: number;
   toggleTheme: () => Promise<void>;
   appointments: Appointment[];
   clients: Client[];
@@ -73,6 +74,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [role, setRole] = useState<UserRole>('barber');
   const [themeMode, setThemeModeState] = useState<ThemeMode>('dark');
+  const [themeTrigger, setThemeTrigger] = useState(0);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -129,8 +131,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const toggleTheme = async () => {
     const nextMode: ThemeMode = themeMode === 'dark' ? 'light' : 'dark';
-    setThemeModeState(nextMode);
     applyThemeColors(nextMode);
+    setThemeModeState(nextMode);
+    setThemeTrigger((n) => n + 1);
     await StorageService.setThemeMode(nextMode);
   };
 
@@ -324,6 +327,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         switchRole,
         themeMode,
         isDark: themeMode === 'dark',
+        themeTrigger,
         toggleTheme,
         appointments,
         clients,
