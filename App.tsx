@@ -22,11 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, isDark } = useApp();
-  const [fontsLoaded] = useFonts(Ionicons.font);
-
-  if (!fontsLoaded) {
-    return null;
-  }
+  // Preload Ionicons font asynchronously
+  useFonts(Ionicons.font);
 
   const renderActiveScreen = () => {
     switch (activeTab) {
