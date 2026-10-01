@@ -17,9 +17,16 @@ import { MyAppointmentsScreen } from './src/screens/MyAppointmentsScreen';
 import { ClientBarbersScreen } from './src/screens/ClientBarbersScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { theme } from './src/components/Theme';
+import { useFonts } from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, isDark } = useApp();
+  const [fontsLoaded] = useFonts(Ionicons.font);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   const renderActiveScreen = () => {
     switch (activeTab) {

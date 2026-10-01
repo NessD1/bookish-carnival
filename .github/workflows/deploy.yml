@@ -38,10 +38,17 @@ jobs:
 
       - name: Fix paths for GitHub Pages subpath
         run: |
-          # Replace root-relative paths with relative paths so it loads correctly on https://<user>.github.io/<repo>/
+          # 1. Replace root-relative paths in index.html with relative paths
           sed -i 's|href="/favicon.ico"|href="./favicon.ico"|g' dist/index.html
           sed -i 's|src="/_expo/|src="./_expo/|g' dist/index.html
-          # Add .nojekyll so GitHub Pages does not ignore folders starting with underscore (_expo)
+
+          # 2. Inject font-face rules in index.html for vector icons on GitHub Pages
+          sed -i 's|</head>|<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ionicons/7.4.0/css/ionicons.min.css"><style>@font-face { font-family: "ionicons"; src: url("./assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf") format("truetype"); }</style></head>|g' dist/index.html
+
+          # 3. Fix /assets/ absolute font paths inside all exported js bundles
+          find dist/_expo/static/js/web/ -name "*.js" -exec sed -i 's|"/assets/node_modules|"\./assets/node_modules|g' {} +
+
+          # 4. Add .nojekyll so GitHub Pages serves directories with underscores (_expo)
           touch dist/.nojekyll
 
       - name: Setup Pages
