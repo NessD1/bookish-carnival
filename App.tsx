@@ -19,7 +19,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { theme } from './src/components/Theme';
 
 const MainAppContent: React.FC = () => {
-  const { activeTab } = useApp();
+  const { activeTab, isDark } = useApp();
 
   const renderActiveScreen = () => {
     switch (activeTab) {
@@ -51,9 +51,9 @@ const MainAppContent: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <View style={styles.appShell}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.surface }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View style={[styles.appShell, { backgroundColor: theme.colors.background, borderColor: theme.colors.surfaceBorder }]}>
         {/* Persistent Top Header with Brand & Role Switcher */}
         <Header />
 

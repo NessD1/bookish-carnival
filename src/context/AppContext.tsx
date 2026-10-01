@@ -12,10 +12,14 @@ import {
 } from '../types';
 import { StorageService, DEFAULT_SALON_INFO } from '../services/storage';
 import { NotificationService } from '../services/notifications';
+import { theme, darkColors, lightColors, ThemeMode } from '../components/Theme';
 
 interface AppContextType {
   role: UserRole;
   switchRole: (role: UserRole) => void;
+  themeMode: 'dark' | 'light';
+  isDark: boolean;
+  toggleTheme: () => Promise<void>;
   appointments: Appointment[];
   clients: Client[];
   barbers: Barber[];
@@ -68,6 +72,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [role, setRole] = useState<UserRole>('barber');
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('dark');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -86,11 +91,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [activeAppointmentDetail, setActiveAppointmentDetail] = useState<Appointment | null>(null);
 
+  // Sync theme object colors with active theme mode
+  const applyThemeColors = (mode: ThemeMode) => {
+    const palette = mode === 'light' ? lightColors : darkColors;
+    Object.assign(theme.colors, palette);
+  };
+
   // Load initial data from Storage
   const loadData = async () => {
     await StorageService.initStorage();
-    const [savedRole, apts, clis, barbs, srvs, salon, notifs] = await Promise.all([
+    const [savedRole, savedTheme, apts, clis, barbs, srvs, salon, notifs] = await Promise.all([
       StorageService.getActiveRole(),
+      StorageService.getThemeMode(),
       StorageService.getAppointments(),
       StorageService.getClients(),
       StorageService.getBarbers(),
@@ -100,6 +112,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     ]);
 
     setRole(savedRole);
+    setThemeModeState(savedTheme);
+    applyThemeColors(savedTheme);
     setAppointments(apts);
     setClients(clis);
     setBarbers(barbs);
@@ -112,6 +126,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     loadData();
     NotificationService.requestPermissions();
   }, []);
+
+  const toggleTheme = async () => {
+    const nextMode: ThemeMode = themeMode === 'dark' ? 'light' : 'dark';
+    setThemeModeState(nextMode);
+    applyThemeColors(nextMode);
+    await StorageService.setThemeMode(nextMode);
+  };
 
   const switchRole = async (newRole: UserRole) => {
     setRole(newRole);
@@ -301,6 +322,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       value={{
         role,
         switchRole,
+        themeMode,
+        isDark: themeMode === 'dark',
+        toggleTheme,
         appointments,
         clients,
         barbers,

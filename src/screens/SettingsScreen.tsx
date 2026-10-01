@@ -25,6 +25,8 @@ export const SettingsScreen: React.FC = () => {
     barbers,
     services,
     resetDemoData,
+    isDark,
+    toggleTheme,
   } = useApp();
 
   const [isDbInspectorOpen, setIsDbInspectorOpen] = useState(false);
@@ -168,6 +170,34 @@ export const SettingsScreen: React.FC = () => {
                 </View>
               )}
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Theme Settings (Dark / Light) */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>APARIENCIA Y TEMA</Text>
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Ionicons
+                name={isDark ? "moon" : "sunny"}
+                size={22}
+                color={theme.colors.primary}
+              />
+              <View>
+                <Text style={styles.settingLabel}>
+                  {isDark ? 'Tema Oscuro (Modo Noche)' : 'Tema Claro (Modo Blanco)'}
+                </Text>
+                <Text style={styles.settingSub}>
+                  {isDark ? 'Fondo oscuro con acentos dorados' : 'Fondo blanco limpio y de alto contraste'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={!isDark}
+              onValueChange={toggleTheme}
+              trackColor={{ false: theme.colors.surfaceBorder, true: theme.colors.primary }}
+              thumbColor={theme.colors.white}
+            />
           </View>
         </View>
 

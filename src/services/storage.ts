@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   SALON_INFO: '@crown_blade_salon_info_es_v1',
   NOTIFICATIONS: '@crown_blade_notifications_es_v1',
   ROLE: '@crown_blade_active_role_es_v1',
+  THEME: '@crown_blade_theme_mode_v1',
   INITIALIZED: '@crown_blade_initialized_es_v1',
 };
 
@@ -518,5 +519,19 @@ export const StorageService = {
 
   async setActiveRole(role: 'barber' | 'client'): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.ROLE, role);
+  },
+
+  // Theme Mode
+  async getThemeMode(): Promise<'dark' | 'light'> {
+    try {
+      const mode = await AsyncStorage.getItem(STORAGE_KEYS.THEME);
+      return (mode as 'dark' | 'light') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  },
+
+  async setThemeMode(mode: 'dark' | 'light'): Promise<void> {
+    await AsyncStorage.setItem(STORAGE_KEYS.THEME, mode);
   },
 };

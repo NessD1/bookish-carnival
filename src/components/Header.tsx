@@ -11,6 +11,8 @@ export const Header: React.FC = () => {
     salonInfo,
     unreadNotificationsCount,
     openNotificationModal,
+    isDark,
+    toggleTheme,
   } = useApp();
 
   return (
@@ -30,6 +32,19 @@ export const Header: React.FC = () => {
         </View>
 
         <View style={styles.actionButtons}>
+          {/* Theme Toggle Button (Dark / Light) */}
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={toggleTheme}
+            accessibilityLabel={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          >
+            <Ionicons
+              name={isDark ? "sunny-outline" : "moon-outline"}
+              size={20}
+              color={isDark ? theme.colors.primaryLight : theme.colors.textPrimary}
+            />
+          </TouchableOpacity>
+
           {/* Notification Bell */}
           <TouchableOpacity
             style={styles.iconButton}
