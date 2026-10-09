@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   },
   cardActive: {
     borderColor: theme.colors.inChair,
-    backgroundColor: '#131e33',
+    backgroundColor: theme.colors.inChairBg,
   },
   topRow: {
     flexDirection: 'row',

@@ -428,11 +428,11 @@ const styles = StyleSheet.create({
   },
   modeCardActiveBarber: {
     borderColor: theme.colors.primary,
-    backgroundColor: '#1b202c',
+    backgroundColor: theme.colors.primaryMuted,
   },
   modeCardActiveClient: {
     borderColor: theme.colors.secondary,
-    backgroundColor: '#132230',
+    backgroundColor: theme.colors.secondaryMuted,
   },
   modeIconCircle: {
     width: 36,

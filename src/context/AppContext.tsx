@@ -116,6 +116,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setRole(savedRole);
     setThemeModeState(savedTheme);
     applyThemeColors(savedTheme);
+    if (savedTheme !== 'dark') {
+      setThemeTrigger((n) => n + 1);
+    }
     setAppointments(apts);
     setClients(clis);
     setBarbers(barbs);
