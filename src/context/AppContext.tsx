@@ -12,7 +12,7 @@ import {
 } from '../types';
 import { StorageService, DEFAULT_SALON_INFO } from '../services/storage';
 import { NotificationService } from '../services/notifications';
-import { theme, darkColors, lightColors, ThemeMode } from '../components/Theme';
+import { theme, darkColors, lightColors, ThemeMode, applyThemeCssVariables } from '../components/Theme';
 
 interface AppContextType {
   role: UserRole;
@@ -93,10 +93,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [activeAppointmentDetail, setActiveAppointmentDetail] = useState<Appointment | null>(null);
 
-  // Sync theme object colors with active theme mode
+  // Sync theme object colors and CSS variables with active theme mode
   const applyThemeColors = (mode: ThemeMode) => {
     const palette = mode === 'light' ? lightColors : darkColors;
     Object.assign(theme.colors, palette);
+    applyThemeCssVariables(mode);
   };
 
   // Load initial data from Storage

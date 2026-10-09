@@ -122,8 +122,44 @@ export const defaultTheme = {
   },
 };
 
+// Generate CSS variable token map for web platform so styles update reactively in DOM
+const webCssColorTokens = (Object.keys(darkColors) as (keyof ThemeColors)[]).reduce(
+  (acc, key) => {
+    acc[key] = `var(--c-${key}, ${darkColors[key]})`;
+    return acc;
+  },
+  {} as Record<keyof ThemeColors, string>
+) as ThemeColors;
+
+// Helper to inject/update CSS variables on the document element (Web only)
+export const applyThemeCssVariables = (mode: ThemeMode) => {
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const palette = mode === 'light' ? lightColors : darkColors;
+    (Object.keys(palette) as (keyof ThemeColors)[]).forEach((key) => {
+      document.documentElement.style.setProperty(`--c-${key}`, palette[key]);
+    });
+    // Set document background color so body/overscroll reflects theme
+    if (document.body) {
+      document.body.style.backgroundColor = palette.background;
+    }
+  }
+};
+
+// Immediately initialize default dark variables if in browser environment
+if (typeof document !== 'undefined') {
+  applyThemeCssVariables('dark');
+}
+
+import { Platform } from 'react-native';
+
 // Mutable theme object to preserve backward compatibility with existing StyleSheet references
 export const theme = {
   ...defaultTheme,
-  colors: { ...darkColors },
+  // On web, StyleSheet.create() captures the CSS variables once, allowing instant DOM-level updates.
+  // On native, it uses the direct darkColors initially and updates in-place.
+  colors: Platform.OS === 'web'
+    ? { ...webCssColorTokens }
+    : { ...darkColors },
 };
+
+
