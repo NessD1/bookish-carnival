@@ -23,6 +23,10 @@ interface AppContextType {
   themeTrigger: number;
   toggleTheme: () => Promise<void>;
   isOnlineDatabaseConnected: boolean;
+  supabaseConfig: { url: string; anonKey: string; isCustom: boolean };
+  connectCustomSupabase: (url: string, anonKey: string) => Promise<boolean>;
+  disconnectCustomSupabase: () => Promise<void>;
+  refreshData: () => Promise<void>;
   appointments: Appointment[];
   clients: Client[];
   barbers: Barber[];
@@ -78,6 +82,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [themeMode, setThemeModeState] = useState<ThemeMode>('dark');
   const [themeTrigger, setThemeTrigger] = useState(0);
   const [isOnlineDatabaseConnected, setIsOnlineDatabaseConnected] = useState(false);
+  const [supabaseConfig, setSupabaseConfig] = useState<{ url: string; anonKey: string; isCustom: boolean }>({
+    url: '',
+    anonKey: '',
+    isCustom: false,
+  });
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -106,6 +115,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Load initial data from Storage and Supabase
   const loadData = async () => {
     await StorageService.initStorage();
+    await SupabaseService.init();
+    setSupabaseConfig(SupabaseService.getConfig());
     const [savedRole, savedTheme, localApts, localClis, localBarbs, localSrvs, localSalon, notifs] =
       await Promise.all([
         StorageService.getActiveRole(),
@@ -421,6 +432,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return notifications.filter((n) => !n.read).length;
   }, [notifications]);
 
+  const connectCustomSupabase = async (url: string, anonKey: string): Promise<boolean> => {
+    await SupabaseService.saveCustomConfig(url, anonKey);
+    await loadData();
+    return true;
+  };
+
+  const disconnectCustomSupabase = async (): Promise<void> => {
+    await SupabaseService.removeCustomConfig();
+    setIsOnlineDatabaseConnected(false);
+    await loadData();
+  };
+
+  const refreshData = async (): Promise<void> => {
+    await loadData();
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -431,6 +458,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         themeTrigger,
         toggleTheme,
         isOnlineDatabaseConnected,
+        supabaseConfig,
+        connectCustomSupabase,
+        disconnectCustomSupabase,
+        refreshData,
         appointments,
         clients,
         barbers,

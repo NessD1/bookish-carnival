@@ -9,6 +9,8 @@ import {
   Alert,
   Platform,
   Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -28,10 +30,61 @@ export const SettingsScreen: React.FC = () => {
     isDark,
     toggleTheme,
     isOnlineDatabaseConnected,
+    supabaseConfig,
+    connectCustomSupabase,
+    disconnectCustomSupabase,
+    refreshData,
   } = useApp();
 
   const [isDbInspectorOpen, setIsDbInspectorOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState<'appointments' | 'clients' | 'barbers' | 'services'>('appointments');
+
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState(supabaseConfig.url || '');
+  const [supabaseKeyInput, setSupabaseKeyInput] = useState(supabaseConfig.anonKey || '');
+  const [isConnectingSupabase, setIsConnectingSupabase] = useState(false);
+
+  const handleOpenSupabaseModal = () => {
+    setSupabaseUrlInput(supabaseConfig.url || '');
+    setSupabaseKeyInput(supabaseConfig.anonKey || '');
+    setIsSupabaseModalOpen(true);
+  };
+
+  const handleSaveSupabase = async () => {
+    if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
+      Alert.alert('Campos requeridos', 'Por favor ingresa tanto la URL como la Clave Anónima de tu proyecto Supabase.');
+      return;
+    }
+
+    try {
+      setIsConnectingSupabase(true);
+      await connectCustomSupabase(supabaseUrlInput.trim(), supabaseKeyInput.trim());
+      setIsSupabaseModalOpen(false);
+      Alert.alert('¡Conectado con éxito!', 'La aplicación ahora está sincronizada en tiempo real con tu base de datos de Supabase.');
+    } catch (err: any) {
+      Alert.alert('Error de conexión', err?.message || 'No se pudo conectar con Supabase. Verifica la URL y la Anon Key.');
+    } finally {
+      setIsConnectingSupabase(false);
+    }
+  };
+
+  const handleDisconnectSupabase = () => {
+    Alert.alert(
+      'Desconectar Supabase',
+      '¿Deseas volver al modo de almacenamiento local desconectando Supabase?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desconectar',
+          style: 'destructive',
+          onPress: async () => {
+            await disconnectCustomSupabase();
+            Alert.alert('Desconectado', 'La app volvió al modo de almacenamiento local.');
+          },
+        },
+      ]
+    );
+  };
 
   const getTableData = () => {
     switch (selectedTable) {
@@ -270,11 +323,12 @@ export const SettingsScreen: React.FC = () => {
               },
             ]}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
               <Ionicons
                 name={isOnlineDatabaseConnected ? 'cloud-done' : 'cloud-offline-outline'}
-                size={22}
-                color={isOnlineDatabaseConnected ? theme.colors.confirmed : theme.colors.textMuted}
+                size={24}
+                color={isOnlineDatabaseConnected ? theme.colors.confirmed : theme.colors.primary}
+                style={{ marginTop: 2 }}
               />
               <View style={{ flex: 1 }}>
                 <Text
@@ -289,13 +343,81 @@ export const SettingsScreen: React.FC = () => {
                 >
                   {isOnlineDatabaseConnected
                     ? 'Supabase Conectado (En Línea)'
-                    : 'Almacenamiento Local (Listo para Supabase)'}
+                    : 'Modo Local (Listo para Supabase Cloud)'}
                 </Text>
                 <Text style={styles.dbStatusSub}>
                   {isOnlineDatabaseConnected
-                    ? 'Sincronización en tiempo real activa con Supabase PostgreSQL.'
-                    : 'Modo local activo. Para conectar a la nube, coloca tus credenciales de Supabase en .env.'}
+                    ? `Sincronización en tiempo real activa con: ${supabaseConfig.url || 'Supabase'}`
+                    : 'Conecta tu base de datos Supabase en la nube para sincronizar tus citas en tiempo real.'}
                 </Text>
+
+                <View style={styles.bannerButtonsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.dbActionBtn,
+                      {
+                        backgroundColor: isOnlineDatabaseConnected
+                          ? theme.colors.surface
+                          : theme.colors.primary,
+                        borderColor: isOnlineDatabaseConnected
+                          ? theme.colors.surfaceBorder
+                          : theme.colors.primary,
+                      },
+                    ]}
+                    onPress={handleOpenSupabaseModal}
+                  >
+                    <Ionicons
+                      name={isOnlineDatabaseConnected ? 'settings-outline' : 'flash'}
+                      size={14}
+                      color={isOnlineDatabaseConnected ? theme.colors.textPrimary : '#000'}
+                    />
+                    <Text
+                      style={[
+                        styles.dbActionBtnText,
+                        { color: isOnlineDatabaseConnected ? theme.colors.textPrimary : '#000' },
+                      ]}
+                    >
+                      {isOnlineDatabaseConnected ? 'Credenciales' : 'Conectar Supabase'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {isOnlineDatabaseConnected ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.dbActionBtn,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.danger,
+                        },
+                      ]}
+                      onPress={handleDisconnectSupabase}
+                    >
+                      <Ionicons name="log-out-outline" size={14} color={theme.colors.danger} />
+                      <Text style={[styles.dbActionBtnText, { color: theme.colors.danger }]}>
+                        Desconectar
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        styles.dbActionBtn,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.surfaceBorder,
+                        },
+                      ]}
+                      onPress={async () => {
+                        await refreshData();
+                        Alert.alert('Sincronizado', 'Se verificó el estado de datos.');
+                      }}
+                    >
+                      <Ionicons name="refresh-outline" size={14} color={theme.colors.textMuted} />
+                      <Text style={[styles.dbActionBtnText, { color: theme.colors.textMuted }]}>
+                        Recargar
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             </View>
           </View>
@@ -402,6 +524,95 @@ export const SettingsScreen: React.FC = () => {
               >
                 <Text style={styles.closeInspectorBtnText}>Cerrar Inspector</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Supabase Config Modal */}
+        <Modal
+          visible={isSupabaseModalOpen}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setIsSupabaseModalOpen(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="cloud" size={22} color={theme.colors.primary} />
+                  <Text style={styles.modalTitle}>Configurar Supabase</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsSupabaseModalOpen(false)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close" size={24} color={theme.colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                <Text style={styles.configInstructions}>
+                  Sincroniza tus citas, barberos y clientes en la nube. Conecta tu proyecto de Supabase ingresando los datos de tu API:
+                </Text>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>PROJECT URL (URL DE SUPABASE)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="https://xyzprojectid.supabase.co"
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={supabaseUrlInput}
+                    onChangeText={setSupabaseUrlInput}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Text style={styles.inputHint}>En Supabase: Project Settings &gt; API &gt; Project URL</Text>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>ANON PUBLIC KEY (CLAVE ANÓNIMA)</Text>
+                  <TextInput
+                    style={[styles.textInput, { height: 68 }]}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={supabaseKeyInput}
+                    onChangeText={setSupabaseKeyInput}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    multiline
+                  />
+                  <Text style={styles.inputHint}>En Supabase: Project Settings &gt; API &gt; anon public</Text>
+                </View>
+
+                <View style={styles.sqlHelpBox}>
+                  <Ionicons name="information-circle-outline" size={20} color={theme.colors.primary} />
+                  <Text style={styles.sqlHelpText}>
+                    Recuerda ejecutar el archivo <Text style={{ fontWeight: '800' }}>supabase_schema.sql</Text> en el SQL Editor de tu panel de Supabase para generar las tablas.
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.cancelBtn]}
+                  onPress={() => setIsSupabaseModalOpen(false)}
+                  disabled={isConnectingSupabase}
+                >
+                  <Text style={styles.cancelBtnText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.saveBtn]}
+                  onPress={handleSaveSupabase}
+                  disabled={isConnectingSupabase}
+                >
+                  {isConnectingSupabase ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={styles.saveBtnText}>Guardar y Conectar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -736,5 +947,103 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: theme.colors.textMuted,
     marginTop: 2,
+  },
+  bannerButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    flexWrap: 'wrap',
+  },
+  dbActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+  },
+  dbActionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  configInstructions: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  inputGroup: {
+    marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: theme.colors.textMuted,
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  textInput: {
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+    borderRadius: theme.borderRadius.md,
+    padding: 10,
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    textAlignVertical: 'top',
+  },
+  inputHint: {
+    fontSize: 10,
+    color: theme.colors.textMuted,
+    marginTop: 4,
+  },
+  sqlHelpBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: theme.colors.surfaceElevated,
+    padding: 10,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+    marginTop: 4,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  sqlHelpText: {
+    flex: 1,
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    lineHeight: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtn: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+  },
+  cancelBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.textSecondary,
+  },
+  saveBtn: {
+    backgroundColor: theme.colors.primary,
+  },
+  saveBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#000',
   },
 });

@@ -3,29 +3,56 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import { Appointment, Barber, Client, ServiceItem, SalonInfo } from '../types';
 
-const rawSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '';
-const supabaseUrl = rawSupabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
+const STORAGE_KEY_CUSTOM_SUPABASE = '@barber_supabase_custom_credentials';
 
-export const isSupabaseConfigured = (): boolean => {
+const envSupabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || '').trim();
+const envSupabaseAnonKey = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+
+let activeSupabaseClient: SupabaseClient | null = null;
+let currentUrl: string = '';
+let currentAnonKey: string = '';
+let isCustomConfig: boolean = false;
+
+const cleanUrl = (url: string): string => {
+  return url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+};
+
+const isValidConfig = (url: string, key: string): boolean => {
+  const cleaned = cleanUrl(url);
   return (
-    Boolean(supabaseUrl && supabaseAnonKey) &&
-    supabaseUrl.startsWith('https://') &&
-    supabaseUrl !== 'https://your-project-id.supabase.co' &&
-    supabaseAnonKey !== 'your-anon-key'
+    Boolean(cleaned && key) &&
+    cleaned.startsWith('https://') &&
+    cleaned !== 'https://your-project-id.supabase.co' &&
+    key !== 'your-anon-key'
   );
 };
 
-export const supabase: SupabaseClient | null = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        storage: AsyncStorage,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: Platform.OS === 'web',
-      },
-    })
-  : null;
+const createClientInstance = (url: string, key: string): SupabaseClient => {
+  return createClient(cleanUrl(url), key.trim(), {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: Platform.OS === 'web',
+    },
+  });
+};
+
+// Immediately initialize with env if valid
+if (isValidConfig(envSupabaseUrl, envSupabaseAnonKey)) {
+  currentUrl = cleanUrl(envSupabaseUrl);
+  currentAnonKey = envSupabaseAnonKey;
+  activeSupabaseClient = createClientInstance(currentUrl, currentAnonKey);
+}
+
+export const getSupabaseClient = (): SupabaseClient | null => activeSupabaseClient;
+
+// Legacy export compatibility
+export { activeSupabaseClient as supabase };
+
+export const isSupabaseConfigured = (): boolean => {
+  return activeSupabaseClient !== null;
+};
 
 // Database column mappers
 export const mapAppointmentFromDb = (row: any): Appointment => ({
@@ -130,14 +157,92 @@ export const mapSalonInfoFromDb = (row: any): SalonInfo => ({
 });
 
 export const SupabaseService = {
+  async init(): Promise<boolean> {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY_CUSTOM_SUPABASE);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (isValidConfig(parsed.url, parsed.anonKey)) {
+          currentUrl = cleanUrl(parsed.url);
+          currentAnonKey = parsed.anonKey.trim();
+          isCustomConfig = true;
+          activeSupabaseClient = createClientInstance(currentUrl, currentAnonKey);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('Error al leer credenciales personalizadas de Supabase:', e);
+    }
+
+    if (isValidConfig(envSupabaseUrl, envSupabaseAnonKey)) {
+      currentUrl = cleanUrl(envSupabaseUrl);
+      currentAnonKey = envSupabaseAnonKey;
+      isCustomConfig = false;
+      activeSupabaseClient = createClientInstance(currentUrl, currentAnonKey);
+      return true;
+    }
+
+    return false;
+  },
+
   isConfigured(): boolean {
-    return isSupabaseConfigured() && supabase !== null;
+    return activeSupabaseClient !== null;
+  },
+
+  getConfig(): { url: string; anonKey: string; isCustom: boolean } {
+    return {
+      url: currentUrl,
+      anonKey: currentAnonKey,
+      isCustom: isCustomConfig,
+    };
+  },
+
+  async saveCustomConfig(url: string, anonKey: string): Promise<boolean> {
+    const cleaned = cleanUrl(url);
+    const key = anonKey.trim();
+    if (!isValidConfig(cleaned, key)) {
+      throw new Error('La URL o la Anon Key son inválidas. Debe ser https://<tu-proyecto>.supabase.co');
+    }
+
+    // Test connection with lightweight query
+    const tempClient = createClientInstance(cleaned, key);
+    const { error } = await tempClient.from('salon_info').select('name').limit(1);
+    if (error && error.code !== 'PGRST116') {
+      console.warn('Prueba de conexión con Supabase devolvió advertencia/error:', error.message);
+    }
+
+    await AsyncStorage.setItem(
+      STORAGE_KEY_CUSTOM_SUPABASE,
+      JSON.stringify({ url: cleaned, anonKey: key })
+    );
+
+    currentUrl = cleaned;
+    currentAnonKey = key;
+    isCustomConfig = true;
+    activeSupabaseClient = tempClient;
+    return true;
+  },
+
+  async removeCustomConfig(): Promise<void> {
+    await AsyncStorage.removeItem(STORAGE_KEY_CUSTOM_SUPABASE);
+    if (isValidConfig(envSupabaseUrl, envSupabaseAnonKey)) {
+      currentUrl = cleanUrl(envSupabaseUrl);
+      currentAnonKey = envSupabaseAnonKey;
+      isCustomConfig = false;
+      activeSupabaseClient = createClientInstance(currentUrl, currentAnonKey);
+    } else {
+      currentUrl = '';
+      currentAnonKey = '';
+      isCustomConfig = false;
+      activeSupabaseClient = null;
+    }
   },
 
   // Appointments
   async getAppointments(): Promise<Appointment[] | null> {
-    if (!supabase) return null;
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data, error } = await client
       .from('appointments')
       .select('*')
       .order('date', { ascending: true })
@@ -151,8 +256,9 @@ export const SupabaseService = {
   },
 
   async addAppointment(appointment: Appointment): Promise<boolean> {
-    if (!supabase) return false;
-    const { error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return false;
+    const { error } = await client
       .from('appointments')
       .insert(mapAppointmentToDb(appointment));
 
@@ -164,8 +270,9 @@ export const SupabaseService = {
   },
 
   async updateAppointment(appointment: Appointment): Promise<boolean> {
-    if (!supabase) return false;
-    const { error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return false;
+    const { error } = await client
       .from('appointments')
       .update(mapAppointmentToDb(appointment))
       .eq('id', appointment.id);
@@ -178,8 +285,9 @@ export const SupabaseService = {
   },
 
   async deleteAppointment(id: string): Promise<boolean> {
-    if (!supabase) return false;
-    const { error } = await supabase.from('appointments').delete().eq('id', id);
+    const client = getSupabaseClient();
+    if (!client) return false;
+    const { error } = await client.from('appointments').delete().eq('id', id);
 
     if (error) {
       console.warn('Error deleting appointment from Supabase:', error.message);
@@ -190,8 +298,9 @@ export const SupabaseService = {
 
   // Clients
   async getClients(): Promise<Client[] | null> {
-    if (!supabase) return null;
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data, error } = await client
       .from('clients')
       .select('*')
       .order('total_visits', { ascending: false });
@@ -203,11 +312,12 @@ export const SupabaseService = {
     return (data || []).map(mapClientFromDb);
   },
 
-  async upsertClient(client: Client): Promise<boolean> {
-    if (!supabase) return false;
-    const { error } = await supabase
+  async upsertClient(clientRecord: Client): Promise<boolean> {
+    const client = getSupabaseClient();
+    if (!client) return false;
+    const { error } = await client
       .from('clients')
-      .upsert(mapClientToDb(client), { onConflict: 'id' });
+      .upsert(mapClientToDb(clientRecord), { onConflict: 'id' });
 
     if (error) {
       console.warn('Error upserting client to Supabase:', error.message);
@@ -218,8 +328,9 @@ export const SupabaseService = {
 
   // Barbers
   async getBarbers(): Promise<Barber[] | null> {
-    if (!supabase) return null;
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data, error } = await client
       .from('barbers')
       .select('*')
       .order('rating', { ascending: false });
@@ -232,8 +343,9 @@ export const SupabaseService = {
   },
 
   async updateBarberAvailability(barberId: string, isAvailable: boolean): Promise<boolean> {
-    if (!supabase) return false;
-    const { error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return false;
+    const { error } = await client
       .from('barbers')
       .update({ is_available: isAvailable })
       .eq('id', barberId);
@@ -247,8 +359,9 @@ export const SupabaseService = {
 
   // Services
   async getServices(): Promise<ServiceItem[] | null> {
-    if (!supabase) return null;
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data, error } = await client
       .from('services')
       .select('*')
       .order('price', { ascending: true });
@@ -262,8 +375,9 @@ export const SupabaseService = {
 
   // Salon Info
   async getSalonInfo(): Promise<SalonInfo | null> {
-    if (!supabase) return null;
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data, error } = await client
       .from('salon_info')
       .select('*')
       .limit(1)
@@ -280,9 +394,10 @@ export const SupabaseService = {
   subscribeToAppointments(
     onChange: () => void
   ): (() => void) | null {
-    if (!supabase) return null;
+    const client = getSupabaseClient();
+    if (!client) return null;
 
-    const channel = supabase
+    const channel = client
       .channel('public:appointments')
       .on(
         'postgres_changes',
@@ -294,7 +409,7 @@ export const SupabaseService = {
       .subscribe();
 
     return () => {
-      supabase?.removeChannel(channel);
+      client?.removeChannel(channel);
     };
   },
 };
