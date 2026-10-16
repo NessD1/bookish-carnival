@@ -12,7 +12,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { theme } from './Theme';
-import { AppointmentStatus } from '../types';
 import { NotificationService } from '../services/notifications';
 
 export const AppointmentDetailsModal: React.FC = () => {
@@ -59,7 +58,7 @@ export const AppointmentDetailsModal: React.FC = () => {
   };
 
   const handleSendTestReminder = async () => {
-    const notif = await NotificationService.scheduleAppointmentReminder(apt, 0);
+    await NotificationService.scheduleAppointmentReminder(apt, 0);
     Alert.alert(
       'Recordatorio Enviado',
       `Se ha emitido una notificación para ${apt.serviceName} a las ${apt.timeSlot}.`

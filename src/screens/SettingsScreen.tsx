@@ -27,6 +27,7 @@ export const SettingsScreen: React.FC = () => {
     resetDemoData,
     isDark,
     toggleTheme,
+    isOnlineDatabaseConnected,
   } = useApp();
 
   const [isDbInspectorOpen, setIsDbInspectorOpen] = useState(false);
@@ -254,6 +255,51 @@ export const SettingsScreen: React.FC = () => {
         {/* Database & Diagnostics */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>BASE DE DATOS Y ALMACENAMIENTO</Text>
+
+          {/* Online Database Status Banner */}
+          <View
+            style={[
+              styles.dbStatusBanner,
+              {
+                backgroundColor: isOnlineDatabaseConnected
+                  ? theme.colors.confirmedBg
+                  : theme.colors.surfaceElevated,
+                borderColor: isOnlineDatabaseConnected
+                  ? theme.colors.confirmed
+                  : theme.colors.surfaceBorder,
+              },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons
+                name={isOnlineDatabaseConnected ? 'cloud-done' : 'cloud-offline-outline'}
+                size={22}
+                color={isOnlineDatabaseConnected ? theme.colors.confirmed : theme.colors.textMuted}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.dbStatusTitle,
+                    {
+                      color: isOnlineDatabaseConnected
+                        ? theme.colors.confirmed
+                        : theme.colors.textPrimary,
+                    },
+                  ]}
+                >
+                  {isOnlineDatabaseConnected
+                    ? 'Supabase Conectado (En Línea)'
+                    : 'Almacenamiento Local (Listo para Supabase)'}
+                </Text>
+                <Text style={styles.dbStatusSub}>
+                  {isOnlineDatabaseConnected
+                    ? 'Sincronización en tiempo real activa con Supabase PostgreSQL.'
+                    : 'Modo local activo. Para conectar a la nube, coloca tus credenciales de Supabase en .env.'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
           <View style={styles.statsGrid}>
             <View style={styles.statBox}>
               <Text style={styles.statNum}>{appointments.length}</Text>
@@ -512,6 +558,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: theme.colors.textPrimary,
+  },
+  dbStatusBanner: {
+    padding: 12,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  dbStatusTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  dbStatusSub: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    marginTop: 2,
+    lineHeight: 15,
   },
   statsGrid: {
     flexDirection: 'row',

@@ -13,7 +13,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { theme } from '../components/Theme';
-import { Client } from '../types';
 
 export const ClientsScreen: React.FC = () => {
   const { clients, addClient, openBookingModal } = useApp();

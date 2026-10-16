@@ -11,6 +11,7 @@ import {
   UserRole,
 } from '../types';
 import { StorageService, DEFAULT_SALON_INFO } from '../services/storage';
+import { SupabaseService } from '../services/supabase';
 import { NotificationService } from '../services/notifications';
 import { theme, darkColors, lightColors, ThemeMode, applyThemeCssVariables } from '../components/Theme';
 
@@ -21,6 +22,7 @@ interface AppContextType {
   isDark: boolean;
   themeTrigger: number;
   toggleTheme: () => Promise<void>;
+  isOnlineDatabaseConnected: boolean;
   appointments: Appointment[];
   clients: Client[];
   barbers: Barber[];
@@ -75,6 +77,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [role, setRole] = useState<UserRole>('barber');
   const [themeMode, setThemeModeState] = useState<ThemeMode>('dark');
   const [themeTrigger, setThemeTrigger] = useState(0);
+  const [isOnlineDatabaseConnected, setIsOnlineDatabaseConnected] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -100,19 +103,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     applyThemeCssVariables(mode);
   };
 
-  // Load initial data from Storage
+  // Load initial data from Storage and Supabase
   const loadData = async () => {
     await StorageService.initStorage();
-    const [savedRole, savedTheme, apts, clis, barbs, srvs, salon, notifs] = await Promise.all([
-      StorageService.getActiveRole(),
-      StorageService.getThemeMode(),
-      StorageService.getAppointments(),
-      StorageService.getClients(),
-      StorageService.getBarbers(),
-      StorageService.getServices(),
-      StorageService.getSalonInfo(),
-      StorageService.getNotifications(),
-    ]);
+    const [savedRole, savedTheme, localApts, localClis, localBarbs, localSrvs, localSalon, notifs] =
+      await Promise.all([
+        StorageService.getActiveRole(),
+        StorageService.getThemeMode(),
+        StorageService.getAppointments(),
+        StorageService.getClients(),
+        StorageService.getBarbers(),
+        StorageService.getServices(),
+        StorageService.getSalonInfo(),
+        StorageService.getNotifications(),
+      ]);
 
     setRole(savedRole);
     setThemeModeState(savedTheme);
@@ -120,17 +124,80 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (savedTheme !== 'dark') {
       setThemeTrigger((n) => n + 1);
     }
-    setAppointments(apts);
-    setClients(clis);
-    setBarbers(barbs);
-    setServices(srvs);
-    setSalonInfo(salon);
     setNotifications(notifs);
+
+    let finalApts = localApts;
+    let finalClients = localClis;
+    let finalBarbers = localBarbs;
+    let finalServices = localSrvs;
+    let finalSalon = localSalon;
+
+    // Check if Supabase credentials are configured
+    if (SupabaseService.isConfigured()) {
+      try {
+        const [remoteApts, remoteClients, remoteBarbers, remoteServices, remoteSalon] =
+          await Promise.all([
+            SupabaseService.getAppointments(),
+            SupabaseService.getClients(),
+            SupabaseService.getBarbers(),
+            SupabaseService.getServices(),
+            SupabaseService.getSalonInfo(),
+          ]);
+
+        if (remoteApts) {
+          finalApts = remoteApts;
+          await StorageService.saveAppointments(remoteApts);
+          setIsOnlineDatabaseConnected(true);
+        }
+        if (remoteClients) {
+          finalClients = remoteClients;
+        }
+        if (remoteBarbers && remoteBarbers.length > 0) {
+          finalBarbers = remoteBarbers;
+          await StorageService.saveBarbers(remoteBarbers);
+        }
+        if (remoteServices && remoteServices.length > 0) {
+          finalServices = remoteServices;
+        }
+        if (remoteSalon) {
+          finalSalon = remoteSalon;
+          await StorageService.saveSalonInfo(remoteSalon);
+        }
+      } catch (err) {
+        console.warn('No se pudo sincronizar con Supabase, usando datos locales:', err);
+        setIsOnlineDatabaseConnected(false);
+      }
+    } else {
+      setIsOnlineDatabaseConnected(false);
+    }
+
+    setAppointments(finalApts);
+    setClients(finalClients);
+    setBarbers(finalBarbers);
+    setServices(finalServices);
+    setSalonInfo(finalSalon);
   };
 
   useEffect(() => {
     loadData();
     NotificationService.requestPermissions();
+
+    // Listen to real-time updates when Supabase is active
+    let unsubscribe: (() => void) | null = null;
+    if (SupabaseService.isConfigured()) {
+      unsubscribe = SupabaseService.subscribeToAppointments(async () => {
+        const freshApts = await SupabaseService.getAppointments();
+        if (freshApts) {
+          setAppointments(freshApts);
+          await StorageService.saveAppointments(freshApts);
+        }
+      });
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleTheme = async () => {
@@ -190,6 +257,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     // Auto-create or increment client visits
+    let updatedClientRecord: Client | null = null;
     const existingClient = clients.find(
       (c) => c.phone.trim() === newAppointment.clientPhone.trim() || c.id === newAppointment.clientId
     );
@@ -199,6 +267,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         totalVisits: (existingClient.totalVisits || 0) + 1,
         lastVisit: newAppointment.date,
       };
+      updatedClientRecord = updatedClient;
       const updatedClients = await StorageService.saveClient(updatedClient);
       setClients(updatedClients);
     } else {
@@ -213,8 +282,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         preferredBarberId: newAppointment.barberId,
         lastVisit: newAppointment.date,
       };
+      updatedClientRecord = newClient;
       const updatedClients = await StorageService.saveClient(newClient);
       setClients(updatedClients);
+    }
+
+    // Sync to Supabase in background if configured
+    if (SupabaseService.isConfigured()) {
+      SupabaseService.addAppointment(newAppointment);
+      if (updatedClientRecord) {
+        SupabaseService.upsertClient(updatedClientRecord);
+      }
     }
 
     return newAppointment;
@@ -230,6 +308,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (activeAppointmentDetail?.id === id) {
       setActiveAppointmentDetail(updatedApt);
+    }
+
+    if (SupabaseService.isConfigured()) {
+      SupabaseService.updateAppointment(updatedApt);
     }
 
     const notif = await NotificationService.notifyStatusChange(updatedApt, status);
@@ -248,6 +330,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setActiveAppointmentDetail(updatedApt);
     }
 
+    if (SupabaseService.isConfigured()) {
+      SupabaseService.updateAppointment(updatedApt);
+    }
+
     const notif = await NotificationService.notifyStatusChange(updatedApt, `reprogramada para ${newDate} a las ${newTimeSlot}`);
     setNotifications((prev) => [notif, ...prev]);
   };
@@ -262,6 +348,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (activeAppointmentDetail?.id === id) {
       setActiveAppointmentDetail(null);
     }
+    if (SupabaseService.isConfigured()) {
+      SupabaseService.deleteAppointment(id);
+    }
   };
 
   const addClient = async (clientData: Omit<Client, 'id' | 'totalVisits'>): Promise<Client> => {
@@ -272,6 +361,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     const updated = await StorageService.saveClient(newClient);
     setClients(updated);
+    if (SupabaseService.isConfigured()) {
+      SupabaseService.upsertClient(newClient);
+    }
     return newClient;
   };
 
@@ -281,6 +373,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
     setBarbers(nextBarbers);
     await StorageService.saveBarbers(nextBarbers);
+
+    const changed = nextBarbers.find((b) => b.id === barberId);
+    if (changed && SupabaseService.isConfigured()) {
+      SupabaseService.updateBarberAvailability(barberId, changed.isAvailable);
+    }
   };
 
   const markNotificationAsRead = async (id: string) => {
@@ -333,6 +430,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isDark: themeMode === 'dark',
         themeTrigger,
         toggleTheme,
+        isOnlineDatabaseConnected,
         appointments,
         clients,
         barbers,

@@ -13,7 +13,6 @@ import { format, addDays, subDays } from 'date-fns';
 import { useApp } from '../context/AppContext';
 import { AppointmentCard } from '../components/AppointmentCard';
 import { theme } from '../components/Theme';
-import { AppointmentStatus } from '../types';
 
 export const AgendaScreen: React.FC = () => {
   const {

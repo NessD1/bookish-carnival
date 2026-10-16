@@ -5,6 +5,7 @@ import { StorageService } from './storage';
 // Safe dynamic import / wrapper for expo-notifications to avoid crashes on web or unsupported devices
 let NotificationsModule: typeof import('expo-notifications') | null = null;
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   NotificationsModule = require('expo-notifications');
   if (NotificationsModule && NotificationsModule.setNotificationHandler) {
     NotificationsModule.setNotificationHandler({

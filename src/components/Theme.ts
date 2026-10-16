@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 export type ThemeMode = 'dark' | 'light';
 
 export interface ThemeColors {
@@ -149,8 +151,6 @@ export const applyThemeCssVariables = (mode: ThemeMode) => {
 if (typeof document !== 'undefined') {
   applyThemeCssVariables('dark');
 }
-
-import { Platform } from 'react-native';
 
 // Mutable theme object to preserve backward compatibility with existing StyleSheet references
 export const theme = {
