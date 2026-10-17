@@ -5,8 +5,12 @@ import { Appointment, Barber, Client, ServiceItem, SalonInfo } from '../types';
 
 const STORAGE_KEY_CUSTOM_SUPABASE = '@barber_supabase_custom_credentials';
 
-const envSupabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || '').trim();
-const envSupabaseAnonKey = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+const DEFAULT_SUPABASE_URL = 'https://nwmgiewsghzyeffvmddk.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53bWdpZXdzZ2h6eWVmZnZtZGRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNDIxNzcsImV4cCI6MjEwNzYxODE3N30.-bK0dSOMpSQFkYqSeffAGLG9EWihVAcTqJ0H40eJFW0';
+
+const envSupabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
+const envSupabaseAnonKey = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
 
 let activeSupabaseClient: SupabaseClient | null = null;
 let currentUrl: string = '';
