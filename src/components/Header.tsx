@@ -17,7 +17,10 @@ export const Header: React.FC = () => {
     toggleTheme,
   } = useApp();
 
+  const isAdmin = currentUser ? currentUser.role === 'admin' : role === 'admin';
+
   const handleNextRole = () => {
+    if (!isAdmin) return;
     if (role === 'admin') switchRole('barber');
     else if (role === 'barber') switchRole('client');
     else switchRole('admin');
@@ -125,19 +128,33 @@ export const Header: React.FC = () => {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.switchButton,
-            { borderColor: roleInfo.color, backgroundColor: theme.colors.surfaceElevated },
-          ]}
-          onPress={handleNextRole}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="swap-horizontal" size={15} color={roleInfo.color} />
-          <Text style={[styles.switchButtonText, { color: roleInfo.color }]}>
-            Cambiar a {roleInfo.nextName}
-          </Text>
-        </TouchableOpacity>
+        {isAdmin ? (
+          <TouchableOpacity
+            style={[
+              styles.switchButton,
+              { borderColor: roleInfo.color, backgroundColor: theme.colors.surfaceElevated },
+            ]}
+            onPress={handleNextRole}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="swap-horizontal" size={15} color={roleInfo.color} />
+            <Text style={[styles.switchButtonText, { color: roleInfo.color }]}>
+              Cambiar a {roleInfo.nextName}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <View
+            style={[
+              styles.verifiedBadge,
+              { borderColor: roleInfo.color, backgroundColor: theme.colors.surfaceElevated },
+            ]}
+          >
+            <Ionicons name="shield-checkmark" size={13} color={roleInfo.color} />
+            <Text style={[styles.verifiedBadgeText, { color: roleInfo.color }]}>
+              {currentUser?.role === 'barber' ? 'Barbero' : 'Cliente'}
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -280,6 +297,19 @@ const styles = StyleSheet.create({
   },
   switchButtonText: {
     fontSize: 12,
+    fontWeight: '700',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+  },
+  verifiedBadgeText: {
+    fontSize: 11,
     fontWeight: '700',
   },
 });

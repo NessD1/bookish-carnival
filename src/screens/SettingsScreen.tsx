@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { theme } from '../components/Theme';
 import { NotificationService } from '../services/notifications';
+import { UserRole } from '../types';
 
 export const SettingsScreen: React.FC = () => {
   const {
@@ -38,6 +39,8 @@ export const SettingsScreen: React.FC = () => {
     refreshData,
   } = useApp();
 
+  const isAdmin = currentUser ? currentUser.role === 'admin' : role === 'admin';
+
   const [isDbInspectorOpen, setIsDbInspectorOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState<'appointments' | 'clients' | 'barbers' | 'services'>('appointments');
 
@@ -47,12 +50,20 @@ export const SettingsScreen: React.FC = () => {
   const [isConnectingSupabase, setIsConnectingSupabase] = useState(false);
 
   const handleOpenSupabaseModal = () => {
+    if (!isAdmin) {
+      Alert.alert('Acceso Restringido', 'Solo el administrador puede configurar la base de datos.');
+      return;
+    }
     setSupabaseUrlInput(supabaseConfig.url || '');
     setSupabaseKeyInput(supabaseConfig.anonKey || '');
     setIsSupabaseModalOpen(true);
   };
 
   const handleSaveSupabase = async () => {
+    if (!isAdmin) {
+      Alert.alert('Acceso Restringido', 'Solo el administrador puede configurar la base de datos.');
+      return;
+    }
     if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
       Alert.alert('Campos requeridos', 'Por favor ingresa tanto la URL como la Clave Anónima de tu proyecto Supabase.');
       return;
@@ -71,6 +82,10 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleDisconnectSupabase = () => {
+    if (!isAdmin) {
+      Alert.alert('Acceso Restringido', 'Solo el administrador puede desconectar la base de datos.');
+      return;
+    }
     Alert.alert(
       'Desconectar Supabase',
       '¿Deseas volver al modo de almacenamiento local desconectando Supabase?',
@@ -86,6 +101,25 @@ export const SettingsScreen: React.FC = () => {
         },
       ]
     );
+  };
+
+  const handleOpenDbInspector = () => {
+    if (!isAdmin) {
+      Alert.alert('Acceso Restringido', 'Solo el administrador puede inspeccionar la base de datos.');
+      return;
+    }
+    setIsDbInspectorOpen(true);
+  };
+
+  const handleSelectRole = (targetRole: UserRole) => {
+    if (targetRole === 'admin' && !isAdmin) {
+      Alert.alert(
+        'Acceso Restringido',
+        'Solo los usuarios con cuenta de Administrador pueden acceder a la consola administrativa.'
+      );
+      return;
+    }
+    switchRole(targetRole);
   };
 
   const getTableData = () => {
@@ -130,6 +164,10 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleResetData = () => {
+    if (!isAdmin) {
+      Alert.alert('Acceso Restringido', 'Solo el administrador puede restablecer los datos.');
+      return;
+    }
     Alert.alert(
       'Restablecer Datos de Demostración',
       'Esto restablecerá todos los barberos, citas y clientes iniciales en español.',
@@ -197,28 +235,39 @@ export const SettingsScreen: React.FC = () => {
               style={[
                 styles.modeCard,
                 role === 'admin' && styles.modeCardActiveAdmin,
+                !isAdmin && styles.modeCardLocked,
               ]}
-              onPress={() => switchRole('admin')}
+              onPress={() => handleSelectRole('admin')}
               activeOpacity={0.8}
             >
               <View style={styles.modeIconCircle}>
                 <Ionicons
-                  name="shield-checkmark"
+                  name={isAdmin ? "shield-checkmark" : "lock-closed"}
                   size={20}
                   color={role === 'admin' ? theme.colors.primary : theme.colors.textMuted}
                 />
               </View>
-              <Text
-                style={[
-                  styles.modeName,
-                  role === 'admin' && { color: theme.colors.primaryLight },
-                ]}
-              >
-                👑 Administrador / Dueño
-              </Text>
-              <Text style={styles.modeSub}>
-                Caja total, equipo de barberos, servicios, base de clientes y configuración global
-              </Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text
+                    style={[
+                      styles.modeName,
+                      role === 'admin' && { color: theme.colors.primaryLight },
+                    ]}
+                  >
+                    👑 Administrador / Dueño
+                  </Text>
+                  {!isAdmin && (
+                    <View style={styles.lockBadgePill}>
+                      <Ionicons name="lock-closed" size={10} color={theme.colors.textMuted} />
+                      <Text style={styles.lockBadgePillText}>Requiere Admin</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.modeSub}>
+                  Caja total, equipo de barberos, servicios, base de clientes y configuración global
+                </Text>
+              </View>
               {role === 'admin' && (
                 <View style={styles.activeCheck}>
                   <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
@@ -232,7 +281,7 @@ export const SettingsScreen: React.FC = () => {
                 styles.modeCard,
                 role === 'barber' && styles.modeCardActiveBarber,
               ]}
-              onPress={() => switchRole('barber')}
+              onPress={() => handleSelectRole('barber')}
               activeOpacity={0.8}
             >
               <View style={styles.modeIconCircle}>
@@ -242,17 +291,19 @@ export const SettingsScreen: React.FC = () => {
                   color={role === 'barber' ? theme.colors.primaryLight : theme.colors.textMuted}
                 />
               </View>
-              <Text
-                style={[
-                  styles.modeName,
-                  role === 'barber' && { color: theme.colors.primaryLight },
-                ]}
-              >
-                💈 Consola de Barbero
-              </Text>
-              <Text style={styles.modeSub}>
-                Agenda personal, mis ingresos, pasar a silla y mi horario de atención
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.modeName,
+                    role === 'barber' && { color: theme.colors.primaryLight },
+                  ]}
+                >
+                  💈 Consola de Barbero
+                </Text>
+                <Text style={styles.modeSub}>
+                  Agenda personal, mis ingresos, pasar a silla y mi horario de atención
+                </Text>
+              </View>
               {role === 'barber' && (
                 <View style={styles.activeCheck}>
                   <Ionicons name="checkmark-circle" size={16} color={theme.colors.primaryLight} />
@@ -266,7 +317,7 @@ export const SettingsScreen: React.FC = () => {
                 styles.modeCard,
                 role === 'client' && styles.modeCardActiveClient,
               ]}
-              onPress={() => switchRole('client')}
+              onPress={() => handleSelectRole('client')}
               activeOpacity={0.8}
             >
               <View style={styles.modeIconCircle}>
@@ -276,17 +327,19 @@ export const SettingsScreen: React.FC = () => {
                   color={role === 'client' ? theme.colors.secondary : theme.colors.textMuted}
                 />
               </View>
-              <Text
-                style={[
-                  styles.modeName,
-                  role === 'client' && { color: theme.colors.secondary },
-                ]}
-              >
-                ✂️ Modo Cliente
-              </Text>
-              <Text style={styles.modeSub}>
-                Explora servicios, conoce a los barberos, reserva turnos y revisa tus citas
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.modeName,
+                    role === 'client' && { color: theme.colors.secondary },
+                  ]}
+                >
+                  ✂️ Modo Cliente
+                </Text>
+                <Text style={styles.modeSub}>
+                  Explora servicios, conoce a los barberos, reserva turnos y revisa tus citas
+                </Text>
+              </View>
               {role === 'client' && (
                 <View style={styles.activeCheck}>
                   <Ionicons name="checkmark-circle" size={16} color={theme.colors.secondary} />
@@ -374,161 +427,184 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Database & Diagnostics */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>BASE DE DATOS Y ALMACENAMIENTO</Text>
+        {/* Database & Diagnostics - Admin Only */}
+        {isAdmin ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.adminHeaderRow}>
+              <Text style={styles.sectionTitle}>BASE DE DATOS Y ALMACENAMIENTO</Text>
+              <View style={styles.adminBadgePill}>
+                <Ionicons name="shield-checkmark" size={12} color={theme.colors.primary} />
+                <Text style={styles.adminBadgePillText}>SOLO ADMIN</Text>
+              </View>
+            </View>
 
-          {/* Online Database Status Banner */}
-          <View
-            style={[
-              styles.dbStatusBanner,
-              {
-                backgroundColor: isOnlineDatabaseConnected
-                  ? theme.colors.confirmedBg
-                  : theme.colors.surfaceElevated,
-                borderColor: isOnlineDatabaseConnected
-                  ? theme.colors.confirmed
-                  : theme.colors.surfaceBorder,
-              },
-            ]}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-              <Ionicons
-                name={isOnlineDatabaseConnected ? 'cloud-done' : 'cloud-offline-outline'}
-                size={24}
-                color={isOnlineDatabaseConnected ? theme.colors.confirmed : theme.colors.primary}
-                style={{ marginTop: 2 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.dbStatusTitle,
-                    {
-                      color: isOnlineDatabaseConnected
-                        ? theme.colors.confirmed
-                        : theme.colors.textPrimary,
-                    },
-                  ]}
-                >
-                  {isOnlineDatabaseConnected
-                    ? 'Supabase Conectado (En Línea)'
-                    : 'Modo Local (Listo para Supabase Cloud)'}
-                </Text>
-                <Text style={styles.dbStatusSub}>
-                  {isOnlineDatabaseConnected
-                    ? `Sincronización en tiempo real activa con: ${supabaseConfig.url || 'Supabase'}`
-                    : 'Conecta tu base de datos Supabase en la nube para sincronizar tus citas en tiempo real.'}
-                </Text>
-
-                <View style={styles.bannerButtonsRow}>
-                  <TouchableOpacity
+            {/* Online Database Status Banner */}
+            <View
+              style={[
+                styles.dbStatusBanner,
+                {
+                  backgroundColor: isOnlineDatabaseConnected
+                    ? theme.colors.confirmedBg
+                    : theme.colors.surfaceElevated,
+                  borderColor: isOnlineDatabaseConnected
+                    ? theme.colors.confirmed
+                    : theme.colors.surfaceBorder,
+                },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                <Ionicons
+                  name={isOnlineDatabaseConnected ? 'cloud-done' : 'cloud-offline-outline'}
+                  size={24}
+                  color={isOnlineDatabaseConnected ? theme.colors.confirmed : theme.colors.primary}
+                  style={{ marginTop: 2 }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
                     style={[
-                      styles.dbActionBtn,
+                      styles.dbStatusTitle,
                       {
-                        backgroundColor: isOnlineDatabaseConnected
-                          ? theme.colors.surface
-                          : theme.colors.primary,
-                        borderColor: isOnlineDatabaseConnected
-                          ? theme.colors.surfaceBorder
-                          : theme.colors.primary,
+                        color: isOnlineDatabaseConnected
+                          ? theme.colors.confirmed
+                          : theme.colors.textPrimary,
                       },
                     ]}
-                    onPress={handleOpenSupabaseModal}
                   >
-                    <Ionicons
-                      name={isOnlineDatabaseConnected ? 'settings-outline' : 'flash'}
-                      size={14}
-                      color={isOnlineDatabaseConnected ? theme.colors.textPrimary : '#000'}
-                    />
-                    <Text
-                      style={[
-                        styles.dbActionBtnText,
-                        { color: isOnlineDatabaseConnected ? theme.colors.textPrimary : '#000' },
-                      ]}
-                    >
-                      {isOnlineDatabaseConnected ? 'Credenciales' : 'Conectar Supabase'}
-                    </Text>
-                  </TouchableOpacity>
+                    {isOnlineDatabaseConnected
+                      ? 'Supabase Conectado (En Línea)'
+                      : 'Modo Local (Listo para Supabase Cloud)'}
+                  </Text>
+                  <Text style={styles.dbStatusSub}>
+                    {isOnlineDatabaseConnected
+                      ? `Sincronización en tiempo real activa con: ${supabaseConfig.url || 'Supabase'}`
+                      : 'Conecta tu base de datos Supabase en la nube para sincronizar tus citas en tiempo real.'}
+                  </Text>
 
-                  {isOnlineDatabaseConnected ? (
+                  <View style={styles.bannerButtonsRow}>
                     <TouchableOpacity
                       style={[
                         styles.dbActionBtn,
                         {
-                          backgroundColor: theme.colors.surface,
-                          borderColor: theme.colors.danger,
+                          backgroundColor: isOnlineDatabaseConnected
+                            ? theme.colors.surface
+                            : theme.colors.primary,
+                          borderColor: isOnlineDatabaseConnected
+                            ? theme.colors.surfaceBorder
+                            : theme.colors.primary,
                         },
                       ]}
-                      onPress={handleDisconnectSupabase}
+                      onPress={handleOpenSupabaseModal}
                     >
-                      <Ionicons name="log-out-outline" size={14} color={theme.colors.danger} />
-                      <Text style={[styles.dbActionBtnText, { color: theme.colors.danger }]}>
-                        Desconectar
+                      <Ionicons
+                        name={isOnlineDatabaseConnected ? 'settings-outline' : 'flash'}
+                        size={14}
+                        color={isOnlineDatabaseConnected ? theme.colors.textPrimary : '#000'}
+                      />
+                      <Text
+                        style={[
+                          styles.dbActionBtnText,
+                          { color: isOnlineDatabaseConnected ? theme.colors.textPrimary : '#000' },
+                        ]}
+                      >
+                        {isOnlineDatabaseConnected ? 'Credenciales' : 'Conectar Supabase'}
                       </Text>
                     </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      style={[
-                        styles.dbActionBtn,
-                        {
-                          backgroundColor: theme.colors.surface,
-                          borderColor: theme.colors.surfaceBorder,
-                        },
-                      ]}
-                      onPress={async () => {
-                        await refreshData();
-                        Alert.alert('Sincronizado', 'Se verificó el estado de datos.');
-                      }}
-                    >
-                      <Ionicons name="refresh-outline" size={14} color={theme.colors.textMuted} />
-                      <Text style={[styles.dbActionBtnText, { color: theme.colors.textMuted }]}>
-                        Recargar
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+
+                    {isOnlineDatabaseConnected ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.dbActionBtn,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.danger,
+                          },
+                        ]}
+                        onPress={handleDisconnectSupabase}
+                      >
+                        <Ionicons name="log-out-outline" size={14} color={theme.colors.danger} />
+                        <Text style={[styles.dbActionBtnText, { color: theme.colors.danger }]}>
+                          Desconectar
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={[
+                          styles.dbActionBtn,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.surfaceBorder,
+                          },
+                        ]}
+                        onPress={async () => {
+                          await refreshData();
+                          Alert.alert('Sincronizado', 'Se verificó el estado de datos.');
+                        }}
+                      >
+                        <Ionicons name="refresh-outline" size={14} color={theme.colors.textMuted} />
+                        <Text style={[styles.dbActionBtnText, { color: theme.colors.textMuted }]}>
+                          Recargar
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
 
-          <View style={styles.statsGrid}>
-            <View style={styles.statBox}>
-              <Text style={styles.statNum}>{appointments.length}</Text>
-              <Text style={styles.statLbl}>Citas</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statBox}>
+                <Text style={styles.statNum}>{appointments.length}</Text>
+                <Text style={styles.statLbl}>Citas</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statNum}>{clients.length}</Text>
+                <Text style={styles.statLbl}>Clientes</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statNum}>{barbers.length}</Text>
+                <Text style={styles.statLbl}>Barberos</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statNum}>{services.length}</Text>
+                <Text style={styles.statLbl}>Servicios</Text>
+              </View>
             </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statNum}>{clients.length}</Text>
-              <Text style={styles.statLbl}>Clientes</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statNum}>{barbers.length}</Text>
-              <Text style={styles.statLbl}>Barberos</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statNum}>{services.length}</Text>
-              <Text style={styles.statLbl}>Servicios</Text>
+
+            <View style={styles.dbActionsRow}>
+              <TouchableOpacity
+                style={styles.viewDbBtn}
+                onPress={handleOpenDbInspector}
+              >
+                <Ionicons name="server" size={16} color={theme.colors.primaryLight} />
+                <Text style={styles.viewDbBtnText}>Abrir Visor de Base de Datos (JSON)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.resetBtn} onPress={handleResetData}>
+                <Ionicons name="refresh-circle" size={18} color={theme.colors.cancelled} />
+                <Text style={styles.resetBtnText}>Restablecer Datos Demo</Text>
+              </TouchableOpacity>
             </View>
           </View>
-
-          <View style={styles.dbActionsRow}>
-            <TouchableOpacity
-              style={styles.viewDbBtn}
-              onPress={() => setIsDbInspectorOpen(true)}
-            >
-              <Ionicons name="server" size={16} color={theme.colors.primaryLight} />
-              <Text style={styles.viewDbBtnText}>Abrir Visor de Base de Datos (JSON)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.resetBtn} onPress={handleResetData}>
-              <Ionicons name="refresh-circle" size={18} color={theme.colors.cancelled} />
-              <Text style={styles.resetBtnText}>Restablecer Datos Demo</Text>
-            </TouchableOpacity>
+        ) : (
+          <View style={[styles.sectionCard, styles.restrictedCard]}>
+            <View style={styles.restrictedHeader}>
+              <View style={styles.restrictedIconCircle}>
+                <Ionicons name="lock-closed" size={20} color={theme.colors.textMuted} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.restrictedTitle}>Base de Datos y Almacenamiento</Text>
+                <Text style={styles.restrictedBadgeText}>Solo disponible para Administrador</Text>
+              </View>
+            </View>
+            <Text style={styles.restrictedDesc}>
+              La configuración del servidor en la nube (Supabase), inspección directa de tablas y restablecimiento de datos están protegidos y reservados exclusivamente para cuentas con rol de Administrador.
+            </Text>
           </View>
-        </View>
+        )}
 
         {/* Database Inspector Modal */}
         <Modal
-          visible={isDbInspectorOpen}
+          visible={isDbInspectorOpen && isAdmin}
           animationType="slide"
           transparent
           onRequestClose={() => setIsDbInspectorOpen(false)}
@@ -599,7 +675,7 @@ export const SettingsScreen: React.FC = () => {
 
         {/* Supabase Config Modal */}
         <Modal
-          visible={isSupabaseModalOpen}
+          visible={isSupabaseModalOpen && isAdmin}
           animationType="fade"
           transparent
           onRequestClose={() => setIsSupabaseModalOpen(false)}
@@ -822,6 +898,86 @@ const styles = StyleSheet.create({
   modeCardActiveAdmin: {
     borderColor: theme.colors.primary,
     backgroundColor: 'rgba(212, 175, 55, 0.12)',
+  },
+  modeCardLocked: {
+    opacity: 0.7,
+    borderStyle: 'dashed',
+  },
+  lockBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: theme.colors.surfaceElevated,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+  },
+  lockBadgePillText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: theme.colors.textMuted,
+  },
+  adminHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  adminBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+  },
+  adminBadgePillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: theme.colors.primary,
+    letterSpacing: 0.5,
+  },
+  restrictedCard: {
+    borderStyle: 'dashed',
+    borderColor: theme.colors.surfaceBorder,
+    backgroundColor: theme.colors.background,
+  },
+  restrictedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  restrictedIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: theme.colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+  },
+  restrictedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  restrictedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.cancelled,
+    marginTop: 2,
+  },
+  restrictedDesc: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    lineHeight: 17,
   },
   modeCardActiveBarber: {
     borderColor: theme.colors.primary,

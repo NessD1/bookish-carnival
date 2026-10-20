@@ -243,14 +243,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const switchRole = async (newRole: UserRole) => {
-    const nextProfile: UserProfile = {
-      ...(currentUser || DEMO_PROFILES[newRole]),
-      role: newRole,
-      barberId: newRole === 'barber' ? (currentUser?.barberId || 'barber_1') : undefined,
-    };
-    setCurrentUser(nextProfile);
+    if (currentUser?.role !== 'admin' && newRole === 'admin') {
+      throw new Error('Solo los administradores pueden cambiar al rol de Administrador.');
+    }
     setRole(newRole);
-    await StorageService.setUserProfile(nextProfile);
     await StorageService.setActiveRole(newRole);
     if (newRole === 'client') {
       setActiveTab('client-home');
@@ -557,6 +553,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const resetDemoData = async () => {
+    if (currentUser?.role !== 'admin' && role !== 'admin') {
+      throw new Error('Solo el administrador puede restablecer los datos.');
+    }
     await StorageService.resetToDemoData();
     await loadData();
   };
@@ -610,12 +609,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [notifications]);
 
   const connectCustomSupabase = async (url: string, anonKey: string): Promise<boolean> => {
+    if (currentUser?.role !== 'admin' && role !== 'admin') {
+      throw new Error('Solo el administrador puede configurar la base de datos.');
+    }
     await SupabaseService.saveCustomConfig(url, anonKey);
     await loadData();
     return true;
   };
 
   const disconnectCustomSupabase = async (): Promise<void> => {
+    if (currentUser?.role !== 'admin' && role !== 'admin') {
+      throw new Error('Solo el administrador puede desconectar la base de datos.');
+    }
     await SupabaseService.removeCustomConfig();
     setIsOnlineDatabaseConnected(false);
     await loadData();
