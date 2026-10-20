@@ -80,6 +80,19 @@ CREATE TABLE IF NOT EXISTS public.salon_info (
     review_count INTEGER DEFAULT 348
 );
 
+-- 6. TABLA DE PERFILES DE USUARIO CON ROLES (profiles)
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'barber', 'client')),
+    name TEXT NOT NULL,
+    phone TEXT,
+    avatar TEXT,
+    barber_id TEXT REFERENCES public.barbers(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ==============================================================================
 -- HABILITAR ROW LEVEL SECURITY (RLS) Y POLÍTICAS DE ACCESO
 -- ==============================================================================
@@ -88,8 +101,9 @@ ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.salon_info ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Políticas permisivas para la app móvil (lectura y escritura pública/anon)
+-- Políticas permisivas para la app móvil (lectura y escritura pública/anon y autenticados)
 DO $$
 BEGIN
     -- Barbers
@@ -111,6 +125,10 @@ BEGIN
     -- Salon Info
     DROP POLICY IF EXISTS "Permitir todo en salon_info" ON public.salon_info;
     CREATE POLICY "Permitir todo en salon_info" ON public.salon_info FOR ALL USING (true) WITH CHECK (true);
+
+    -- Profiles
+    DROP POLICY IF EXISTS "Permitir todo en profiles" ON public.profiles;
+    CREATE POLICY "Permitir todo en profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
 END $$;
 
 -- Habilitar Supabase Realtime para la tabla de citas

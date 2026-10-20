@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
-import { Appointment, Barber, Client, ServiceItem, SalonInfo } from '../types';
+import { Appointment, Barber, Client, ServiceItem, SalonInfo, UserProfile, UserRole } from '../types';
 
 const STORAGE_KEY_CUSTOM_SUPABASE = '@barber_supabase_custom_credentials';
 
@@ -415,5 +415,117 @@ export const SupabaseService = {
     return () => {
       client?.removeChannel(channel);
     };
+  },
+
+  // Auth & Profiles
+  async signInWithPassword(email: string, password: string): Promise<{ user: any; profile: UserProfile | null }> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase no está configurado');
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    if (!data.user) throw new Error('No se pudo autenticar');
+
+    let profile = await SupabaseService.getProfile(data.user.id);
+    if (!profile) {
+      const meta = data.user.user_metadata || {};
+      profile = {
+        id: data.user.id,
+        email: data.user.email || email,
+        name: meta.name || email.split('@')[0],
+        role: (meta.role as UserRole) || 'client',
+        phone: meta.phone,
+        barberId: meta.barberId,
+      };
+      await SupabaseService.upsertProfile(profile).catch(() => {});
+    }
+    return { user: data.user, profile };
+  },
+
+  async signUp(
+    email: string,
+    password: string,
+    metadata: { name: string; role: UserRole; phone?: string; barberId?: string }
+  ): Promise<{ user: any; profile: UserProfile | null }> {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase no está configurado');
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: metadata.name,
+          role: metadata.role,
+          phone: metadata.phone,
+          barberId: metadata.barberId,
+        },
+      },
+    });
+    if (error) throw error;
+    if (!data.user) throw new Error('Error al registrar usuario');
+
+    const profile: UserProfile = {
+      id: data.user.id,
+      email,
+      name: metadata.name,
+      role: metadata.role,
+      phone: metadata.phone,
+      barberId: metadata.barberId,
+    };
+    await SupabaseService.upsertProfile(profile).catch((e) => console.warn('No se pudo guardar en tabla profiles:', e));
+    return { user: data.user, profile };
+  },
+
+  async signOut(): Promise<void> {
+    const client = getSupabaseClient();
+    if (client) {
+      await client.auth.signOut().catch(() => {});
+    }
+  },
+
+  async getCurrentSessionUser(): Promise<{ user: any; profile: UserProfile | null } | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data: { session } } = await client.auth.getSession();
+    if (!session?.user) return null;
+    const profile = await SupabaseService.getProfile(session.user.id);
+    return { user: session.user, profile };
+  },
+
+  async getProfile(userId: string): Promise<UserProfile | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data, error } = await client
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      email: data.email,
+      name: data.name,
+      role: data.role as UserRole,
+      phone: data.phone || undefined,
+      avatar: data.avatar || undefined,
+      barberId: data.barber_id || undefined,
+      createdAt: data.created_at,
+    };
+  },
+
+  async upsertProfile(profile: UserProfile): Promise<boolean> {
+    const client = getSupabaseClient();
+    if (!client) return false;
+    const { error } = await client.from('profiles').upsert({
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      role: profile.role,
+      phone: profile.phone || null,
+      avatar: profile.avatar || null,
+      barber_id: profile.barberId || null,
+      updated_at: new Date().toISOString(),
+    });
+    return !error;
   },
 };

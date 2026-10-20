@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format, addDays, subDays } from 'date-fns';
-import { Appointment, Barber, Client, ServiceItem, SalonInfo, InAppNotification } from '../types';
+import { Appointment, Barber, Client, ServiceItem, SalonInfo, InAppNotification, UserProfile, UserRole } from '../types';
 
 const STORAGE_KEYS = {
   APPOINTMENTS: '@crown_blade_appointments_es_v1',
@@ -10,8 +10,37 @@ const STORAGE_KEYS = {
   SALON_INFO: '@crown_blade_salon_info_es_v1',
   NOTIFICATIONS: '@crown_blade_notifications_es_v1',
   ROLE: '@crown_blade_active_role_es_v1',
+  USER_PROFILE: '@crown_blade_active_profile_v1',
   THEME: '@crown_blade_theme_mode_v1',
   INITIALIZED: '@crown_blade_initialized_es_v1',
+};
+
+export const DEMO_PROFILES: Record<UserRole, UserProfile> = {
+  admin: {
+    id: 'user_admin_1',
+    email: 'admin@crownblade.com',
+    name: 'Carlos Mendoza (Dueño)',
+    role: 'admin',
+    phone: '+1 (555) 000-1122',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=faces',
+  },
+  barber: {
+    id: 'user_barber_1',
+    email: 'marcus@crownblade.com',
+    name: 'Marcus Vance',
+    role: 'barber',
+    barberId: 'barber_1',
+    phone: '+1 (555) 901-2231',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=faces',
+  },
+  client: {
+    id: 'user_client_1',
+    email: 'lucas.c@example.com',
+    name: 'Lucas Campbell',
+    role: 'client',
+    phone: '+1 (555) 432-1098',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=faces',
+  },
 };
 
 export const DEFAULT_SALON_INFO: SalonInfo = {
@@ -507,17 +536,38 @@ export const StorageService = {
     await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifs));
   },
 
-  // User Role
-  async getActiveRole(): Promise<'barber' | 'client'> {
+  // User Profile & Role
+  async getUserProfile(): Promise<UserProfile | null> {
     try {
-      const role = await AsyncStorage.getItem(STORAGE_KEYS.ROLE);
-      return (role as 'barber' | 'client') || 'barber';
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.USER_PROFILE);
+      return data ? JSON.parse(data) : DEMO_PROFILES.admin;
     } catch {
-      return 'barber';
+      return DEMO_PROFILES.admin;
     }
   },
 
-  async setActiveRole(role: 'barber' | 'client'): Promise<void> {
+  async setUserProfile(profile: UserProfile | null): Promise<void> {
+    if (profile) {
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(profile));
+      await AsyncStorage.setItem(STORAGE_KEYS.ROLE, profile.role);
+    } else {
+      await AsyncStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
+    }
+  },
+
+  async getActiveRole(): Promise<UserRole> {
+    try {
+      const role = await AsyncStorage.getItem(STORAGE_KEYS.ROLE);
+      if (role === 'admin' || role === 'barber' || role === 'client') {
+        return role;
+      }
+      return 'admin';
+    } catch {
+      return 'admin';
+    }
+  },
+
+  async setActiveRole(role: UserRole): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.ROLE, role);
   },
 

@@ -39,6 +39,8 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
   const badge = getStatusBadge(appointment.status);
 
+  const isStaff = role === 'admin' || role === 'barber';
+
   const handleCall = () => {
     if (appointment.clientPhone) {
       Linking.openURL(`tel:${appointment.clientPhone}`);
@@ -104,7 +106,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
       {/* Actions Row */}
       <View style={styles.footerRow}>
         {/* Contact Client Shortcut */}
-        {role === 'barber' && appointment.clientPhone ? (
+        {isStaff && appointment.clientPhone ? (
           <TouchableOpacity style={styles.contactBtn} onPress={handleCall}>
             <Ionicons name="call-outline" size={13} color={theme.colors.textSecondary} />
             <Text style={styles.contactBtnText}>Llamar</Text>
@@ -118,7 +120,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
         {/* Dynamic Contextual Action Buttons */}
         <View style={styles.actionButtons}>
-          {role === 'barber' ? (
+          {isStaff ? (
             <>
               {appointment.status === 'pending' && (
                 <>

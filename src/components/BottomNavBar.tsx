@@ -7,12 +7,19 @@ import { theme } from './Theme';
 export const BottomNavBar: React.FC = () => {
   const { role, activeTab, setActiveTab, openBookingModal } = useApp();
 
-  const barberTabs = [
+  const adminTabs = [
     { id: 'agenda', label: 'Agenda', icon: 'calendar-outline', activeIcon: 'calendar' },
-    { id: 'calendar', label: 'Horario', icon: 'grid-outline', activeIcon: 'grid' },
+    { id: 'calendar', label: 'Horarios', icon: 'grid-outline', activeIcon: 'grid' },
     { id: 'clients', label: 'Clientes', icon: 'people-outline', activeIcon: 'people' },
     { id: 'services', label: 'Servicios', icon: 'cut-outline', activeIcon: 'cut' },
     { id: 'settings', label: 'Ajustes', icon: 'settings-outline', activeIcon: 'settings' },
+  ];
+
+  const barberTabs = [
+    { id: 'agenda', label: 'Mi Agenda', icon: 'calendar-outline', activeIcon: 'calendar' },
+    { id: 'calendar', label: 'Mi Horario', icon: 'time-outline', activeIcon: 'time' },
+    { id: 'clients', label: 'Clientes', icon: 'people-outline', activeIcon: 'people' },
+    { id: 'settings', label: 'Mi Perfil', icon: 'person-outline', activeIcon: 'person' },
   ];
 
   const clientTabs = [
@@ -23,7 +30,13 @@ export const BottomNavBar: React.FC = () => {
     { id: 'settings', label: 'Ajustes', icon: 'settings-outline', activeIcon: 'settings' },
   ];
 
-  const tabs = role === 'barber' ? barberTabs : clientTabs;
+  const tabs = role === 'admin' ? adminTabs : role === 'barber' ? barberTabs : clientTabs;
+  const activeColor =
+    role === 'admin'
+      ? theme.colors.primary
+      : role === 'barber'
+      ? theme.colors.primaryLight
+      : theme.colors.secondary;
 
   return (
     <View style={styles.container}>
@@ -46,7 +59,6 @@ export const BottomNavBar: React.FC = () => {
           }
 
           const isActive = activeTab === tab.id;
-          const activeColor = role === 'barber' ? theme.colors.primaryLight : theme.colors.secondary;
 
           return (
             <TouchableOpacity

@@ -45,7 +45,10 @@ export const BookingModal: React.FC = () => {
     preselectedServiceId,
     preselectedBarberId,
     role,
+    currentUser,
   } = useApp();
+
+  const isStaff = role === 'admin' || role === 'barber';
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
@@ -54,9 +57,15 @@ export const BookingModal: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<string>('');
   
   // Client info fields
-  const [clientName, setClientName] = useState<string>(role === 'client' ? 'Alex Jordan' : '');
-  const [clientPhone, setClientPhone] = useState<string>(role === 'client' ? '+1 (555) 789-4321' : '');
-  const [clientEmail, setClientEmail] = useState<string>(role === 'client' ? 'alex.jordan@example.com' : '');
+  const [clientName, setClientName] = useState<string>(
+    role === 'client' ? (currentUser?.name || 'Cliente') : ''
+  );
+  const [clientPhone, setClientPhone] = useState<string>(
+    role === 'client' ? (currentUser?.phone || '+1 (555) 789-4321') : ''
+  );
+  const [clientEmail, setClientEmail] = useState<string>(
+    role === 'client' ? (currentUser?.email || 'cliente@ejemplo.com') : ''
+  );
   const [notes, setNotes] = useState<string>('');
   const [reminderEnabled, setReminderEnabled] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -139,7 +148,7 @@ export const BookingModal: React.FC = () => {
         serviceDuration: selectedService.durationMinutes,
         date: selectedDate,
         timeSlot: selectedTime,
-        status: role === 'barber' ? 'confirmed' : 'pending',
+        status: isStaff ? 'confirmed' : 'pending',
         notes: notes.trim(),
         reminderEnabled,
       });
@@ -168,8 +177,8 @@ export const BookingModal: React.FC = () => {
               <Text style={styles.title}>
                 {isSuccess
                   ? '¡Cita Confirmada!'
-                  : role === 'barber'
-                  ? '💈 Nueva Cita / Cliente sin Cita'
+                  : isStaff
+                  ? '💈 Nueva Cita / Cliente en Salón'
                   : '✂️ Reservar Corte y Peinado'}
               </Text>
               {!isSuccess && (
@@ -206,8 +215,8 @@ export const BookingModal: React.FC = () => {
                 </View>
                 <Text style={styles.successTitle}>¡Todo Listo!</Text>
                 <Text style={styles.successMessage}>
-                  {role === 'barber'
-                    ? `Cita para ${clientName} agregada a la agenda de hoy.`
+                  {isStaff
+                    ? `Cita para ${clientName} agregada con éxito a la agenda.`
                     : `¡Te esperamos en Crown & Blade! Recordatorio local programado.`}
                 </Text>
 

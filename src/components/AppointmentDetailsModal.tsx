@@ -114,8 +114,8 @@ export const AppointmentDetailsModal: React.FC = () => {
                   </Text>
                 </View>
 
-                {/* Barber quick status changer buttons */}
-                {role === 'barber' && (
+                {/* Staff quick status changer buttons */}
+                {(role === 'admin' || role === 'barber') && (
                   <View style={styles.quickStatusChangers}>
                     {apt.status !== 'confirmed' && apt.status !== 'completed' && (
                       <TouchableOpacity

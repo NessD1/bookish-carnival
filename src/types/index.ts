@@ -1,4 +1,15 @@
-export type UserRole = 'barber' | 'client';
+export type UserRole = 'admin' | 'barber' | 'client';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  phone?: string;
+  avatar?: string;
+  barberId?: string; // ID del barbero si el rol es 'barber'
+  createdAt?: string;
+}
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'in-chair' | 'completed' | 'cancelled';
 

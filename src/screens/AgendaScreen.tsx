@@ -16,6 +16,8 @@ import { theme } from '../components/Theme';
 
 export const AgendaScreen: React.FC = () => {
   const {
+    role,
+    currentUser,
     appointments,
     selectedDate,
     setSelectedDate,
@@ -61,8 +63,14 @@ export const AgendaScreen: React.FC = () => {
       .filter((a) => {
         // Match Date
         if (a.date !== selectedDate) return false;
-        // Match Barber
-        if (selectedBarberFilter && a.barberId !== selectedBarberFilter) return false;
+        // Match Barber role scope
+        if (role === 'barber' && currentUser?.barberId && a.barberId !== currentUser.barberId) {
+          return false;
+        }
+        // Match Barber Filter for Admin
+        if (role === 'admin' && selectedBarberFilter && a.barberId !== selectedBarberFilter) {
+          return false;
+        }
         // Match Status
         if (statusFilter !== 'all' && a.status !== statusFilter) return false;
         // Match Search Query
@@ -76,7 +84,7 @@ export const AgendaScreen: React.FC = () => {
         return true;
       })
       .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
-  }, [appointments, selectedDate, selectedBarberFilter, statusFilter, search]);
+  }, [appointments, selectedDate, selectedBarberFilter, statusFilter, search, role, currentUser]);
 
   const activeDateFormatted = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
@@ -90,11 +98,15 @@ export const AgendaScreen: React.FC = () => {
         {/* KPI Summary Cards */}
         <View style={styles.kpiContainer}>
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>INGRESOS HOY</Text>
+            <Text style={styles.kpiLabel}>
+              {role === 'barber' ? 'MIS INGRESOS' : 'INGRESOS TOTAL'}
+            </Text>
             <Text style={[styles.kpiValue, { color: theme.colors.primaryLight }]}>
               ${todayRevenue}
             </Text>
-            <Text style={styles.kpiSub}>Estimado bruto</Text>
+            <Text style={styles.kpiSub}>
+              {role === 'barber' ? 'Turnos propios' : 'Caja del día'}
+            </Text>
           </View>
 
           <View style={styles.kpiCard}>
@@ -137,47 +149,56 @@ export const AgendaScreen: React.FC = () => {
           </ScrollView>
         </View>
 
-        {/* Barber Filter Chips */}
-        <View style={styles.barberFilterRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <TouchableOpacity
-              style={[
-                styles.barberChip,
-                selectedBarberFilter === null && styles.barberChipActive,
-              ]}
-              onPress={() => setSelectedBarberFilter(null)}
-            >
-              <Text
+        {/* Barber Filter Chips (Admin) or Personal Indicator (Barber) */}
+        {role === 'admin' ? (
+          <View style={styles.barberFilterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <TouchableOpacity
                 style={[
-                  styles.barberChipText,
-                  selectedBarberFilter === null && styles.barberChipTextActive,
+                  styles.barberChip,
+                  selectedBarberFilter === null && styles.barberChipActive,
                 ]}
+                onPress={() => setSelectedBarberFilter(null)}
               >
-                Todos
-              </Text>
-            </TouchableOpacity>
-
-            {barbers.map((b) => {
-              const isSelected = selectedBarberFilter === b.id;
-              return (
-                <TouchableOpacity
-                  key={b.id}
-                  style={[styles.barberChip, isSelected && styles.barberChipActive]}
-                  onPress={() => setSelectedBarberFilter(isSelected ? null : b.id)}
+                <Text
+                  style={[
+                    styles.barberChipText,
+                    selectedBarberFilter === null && styles.barberChipTextActive,
+                  ]}
                 >
-                  <Text
-                    style={[
-                      styles.barberChipText,
-                      isSelected && styles.barberChipTextActive,
-                    ]}
+                  Todos
+                </Text>
+              </TouchableOpacity>
+
+              {barbers.map((b) => {
+                const isSelected = selectedBarberFilter === b.id;
+                return (
+                  <TouchableOpacity
+                    key={b.id}
+                    style={[styles.barberChip, isSelected && styles.barberChipActive]}
+                    onPress={() => setSelectedBarberFilter(isSelected ? null : b.id)}
                   >
-                    {b.name.split(' ')[0]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+                    <Text
+                      style={[
+                        styles.barberChipText,
+                        isSelected && styles.barberChipTextActive,
+                      ]}
+                    >
+                      {b.name.split(' ')[0]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : (
+          <View style={styles.barberSelfBadge}>
+            <Ionicons name="person-circle-outline" size={16} color={theme.colors.primary} />
+            <Text style={styles.barberSelfText}>
+              Turnos asignados a: <Text style={{ fontWeight: '700', color: theme.colors.primaryLight }}>{currentUser?.name || 'Mi Perfil'}</Text>
+            </Text>
+          </View>
+        )}
 
         {/* Search & Status Filters */}
         <View style={styles.searchBar}>
@@ -460,6 +481,22 @@ const styles = StyleSheet.create({
     color: theme.colors.background,
     fontWeight: '800',
     fontSize: 12,
+  },
+  barberSelfBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+    marginBottom: 12,
+    gap: 8,
+  },
+  barberSelfText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
   },
   fab: {
     position: 'absolute',

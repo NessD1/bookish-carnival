@@ -9,15 +9,29 @@ import {
   SalonInfo,
   InAppNotification,
   UserRole,
+  UserProfile,
 } from '../types';
-import { StorageService, DEFAULT_SALON_INFO } from '../services/storage';
+import { StorageService, DEFAULT_SALON_INFO, DEMO_PROFILES } from '../services/storage';
 import { SupabaseService } from '../services/supabase';
 import { NotificationService } from '../services/notifications';
 import { theme, darkColors, lightColors, ThemeMode, applyThemeCssVariables } from '../components/Theme';
 
 interface AppContextType {
+  currentUser: UserProfile | null;
+  isAuthenticated: boolean;
   role: UserRole;
   switchRole: (role: UserRole) => void;
+  login: (email: string, password: string) => Promise<UserProfile>;
+  register: (data: {
+    email: string;
+    password: string;
+    name: string;
+    role: UserRole;
+    phone?: string;
+    barberId?: string;
+  }) => Promise<UserProfile>;
+  logout: () => Promise<void>;
+  quickDemoLogin: (role: UserRole) => Promise<UserProfile>;
   themeMode: 'dark' | 'light';
   isDark: boolean;
   themeTrigger: number;
@@ -78,7 +92,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [role, setRole] = useState<UserRole>('barber');
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(DEMO_PROFILES.admin);
+  const [role, setRole] = useState<UserRole>('admin');
   const [themeMode, setThemeModeState] = useState<ThemeMode>('dark');
   const [themeTrigger, setThemeTrigger] = useState(0);
   const [isOnlineDatabaseConnected, setIsOnlineDatabaseConnected] = useState(false);
@@ -117,9 +132,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await StorageService.initStorage();
     await SupabaseService.init();
     setSupabaseConfig(SupabaseService.getConfig());
-    const [savedRole, savedTheme, localApts, localClis, localBarbs, localSrvs, localSalon, notifs] =
+    const [savedRole, savedProfile, savedTheme, localApts, localClis, localBarbs, localSrvs, localSalon, notifs] =
       await Promise.all([
         StorageService.getActiveRole(),
+        StorageService.getUserProfile(),
         StorageService.getThemeMode(),
         StorageService.getAppointments(),
         StorageService.getClients(),
@@ -129,13 +145,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         StorageService.getNotifications(),
       ]);
 
-    setRole(savedRole);
+    const activeUser = savedProfile || (savedRole ? DEMO_PROFILES[savedRole] : DEMO_PROFILES.admin);
+    setCurrentUser(activeUser);
+    setRole(activeUser.role);
     setThemeModeState(savedTheme);
     applyThemeColors(savedTheme);
     if (savedTheme !== 'dark') {
       setThemeTrigger((n) => n + 1);
     }
     setNotifications(notifs);
+    if (activeUser.role === 'client') {
+      setActiveTab('client-home');
+    } else {
+      setActiveTab('agenda');
+    }
 
     let finalApts = localApts;
     let finalClients = localClis;
@@ -220,14 +243,145 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const switchRole = async (newRole: UserRole) => {
+    const nextProfile: UserProfile = {
+      ...(currentUser || DEMO_PROFILES[newRole]),
+      role: newRole,
+      barberId: newRole === 'barber' ? (currentUser?.barberId || 'barber_1') : undefined,
+    };
+    setCurrentUser(nextProfile);
     setRole(newRole);
+    await StorageService.setUserProfile(nextProfile);
     await StorageService.setActiveRole(newRole);
-    // Switch default tab based on role
-    if (newRole === 'barber') {
-      setActiveTab('agenda');
-    } else {
+    if (newRole === 'client') {
       setActiveTab('client-home');
+    } else {
+      setActiveTab('agenda');
     }
+  };
+
+  const login = async (email: string, password: string): Promise<UserProfile> => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check demo credentials
+    const demoMatch = Object.values(DEMO_PROFILES).find(
+      (p) => p.email.toLowerCase() === cleanEmail
+    );
+    if (demoMatch) {
+      setCurrentUser(demoMatch);
+      setRole(demoMatch.role);
+      await StorageService.setUserProfile(demoMatch);
+      setActiveTab(demoMatch.role === 'client' ? 'client-home' : 'agenda');
+      return demoMatch;
+    }
+
+    if (SupabaseService.isConfigured()) {
+      try {
+        const { user, profile } = await SupabaseService.signInWithPassword(cleanEmail, password);
+        const userProfile: UserProfile = profile || {
+          id: user.id,
+          email: user.email || cleanEmail,
+          name: user.user_metadata?.name || cleanEmail.split('@')[0],
+          role: (user.user_metadata?.role as UserRole) || 'client',
+          phone: user.user_metadata?.phone,
+          barberId: user.user_metadata?.barberId,
+        };
+        setCurrentUser(userProfile);
+        setRole(userProfile.role);
+        await StorageService.setUserProfile(userProfile);
+        setActiveTab(userProfile.role === 'client' ? 'client-home' : 'agenda');
+        return userProfile;
+      } catch (err: any) {
+        throw new Error(err?.message || 'Error al iniciar sesión en Supabase');
+      }
+    }
+
+    // Local / Offline fallback login
+    const detectedRole: UserRole = cleanEmail.includes('admin')
+      ? 'admin'
+      : cleanEmail.includes('barber')
+      ? 'barber'
+      : 'client';
+
+    const fallbackProfile: UserProfile = {
+      id: `usr_${Date.now()}`,
+      email: cleanEmail,
+      name: cleanEmail.split('@')[0],
+      role: detectedRole,
+      barberId: detectedRole === 'barber' ? 'barber_1' : undefined,
+    };
+    setCurrentUser(fallbackProfile);
+    setRole(detectedRole);
+    await StorageService.setUserProfile(fallbackProfile);
+    setActiveTab(detectedRole === 'client' ? 'client-home' : 'agenda');
+    return fallbackProfile;
+  };
+
+  const register = async (data: {
+    email: string;
+    password: string;
+    name: string;
+    role: UserRole;
+    phone?: string;
+    barberId?: string;
+  }): Promise<UserProfile> => {
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    if (SupabaseService.isConfigured()) {
+      try {
+        const { user, profile } = await SupabaseService.signUp(cleanEmail, data.password, {
+          name: data.name,
+          role: data.role,
+          phone: data.phone,
+          barberId: data.barberId,
+        });
+        const userProfile: UserProfile = profile || {
+          id: user.id,
+          email: cleanEmail,
+          name: data.name,
+          role: data.role,
+          phone: data.phone,
+          barberId: data.barberId,
+        };
+        setCurrentUser(userProfile);
+        setRole(userProfile.role);
+        await StorageService.setUserProfile(userProfile);
+        setActiveTab(userProfile.role === 'client' ? 'client-home' : 'agenda');
+        return userProfile;
+      } catch (err: any) {
+        throw new Error(err?.message || 'Error al registrarse en Supabase');
+      }
+    }
+
+    const localProfile: UserProfile = {
+      id: `usr_${Date.now()}`,
+      email: cleanEmail,
+      name: data.name,
+      role: data.role,
+      phone: data.phone,
+      barberId: data.barberId,
+    };
+    setCurrentUser(localProfile);
+    setRole(localProfile.role);
+    await StorageService.setUserProfile(localProfile);
+    setActiveTab(localProfile.role === 'client' ? 'client-home' : 'agenda');
+    return localProfile;
+  };
+
+  const logout = async (): Promise<void> => {
+    if (SupabaseService.isConfigured()) {
+      await SupabaseService.signOut();
+    }
+    setCurrentUser(null);
+    await StorageService.setUserProfile(null);
+  };
+
+  const quickDemoLogin = async (targetRole: UserRole): Promise<UserProfile> => {
+    const profile = DEMO_PROFILES[targetRole];
+    setCurrentUser(profile);
+    setRole(profile.role);
+    await StorageService.setUserProfile(profile);
+    setActiveTab(profile.role === 'client' ? 'client-home' : 'agenda');
+    return profile;
   };
 
   const openBookingModal = (serviceId?: string, barberId?: string) => {
@@ -411,22 +565,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
   const todayAppointments = useMemo(() => {
-    return appointments.filter((a) => a.date === selectedDate);
-  }, [appointments, selectedDate]);
+    return appointments.filter((a) => {
+      if (a.date !== selectedDate) return false;
+      if (role === 'barber' && currentUser?.barberId && a.barberId !== currentUser.barberId) {
+        return false;
+      }
+      return true;
+    });
+  }, [appointments, selectedDate, role, currentUser]);
 
   const todayRevenue = useMemo(() => {
     return appointments
-      .filter((a) => a.date === todayStr && (a.status === 'completed' || a.status === 'in-chair' || a.status === 'confirmed'))
+      .filter((a) => {
+        if (a.date !== todayStr) return false;
+        if (role === 'barber' && currentUser?.barberId && a.barberId !== currentUser.barberId) {
+          return false;
+        }
+        return a.status === 'completed' || a.status === 'in-chair' || a.status === 'confirmed';
+      })
       .reduce((sum, a) => sum + (a.servicePrice || 0), 0);
-  }, [appointments, todayStr]);
+  }, [appointments, todayStr, role, currentUser]);
 
   const pendingCount = useMemo(() => {
-    return appointments.filter((a) => a.status === 'pending').length;
-  }, [appointments]);
+    return appointments.filter((a) => {
+      if (role === 'barber' && currentUser?.barberId && a.barberId !== currentUser.barberId) {
+        return false;
+      }
+      return a.status === 'pending';
+    }).length;
+  }, [appointments, role, currentUser]);
 
   const inChairCount = useMemo(() => {
-    return appointments.filter((a) => a.date === todayStr && a.status === 'in-chair').length;
-  }, [appointments, todayStr]);
+    return appointments.filter((a) => {
+      if (a.date !== todayStr || a.status !== 'in-chair') return false;
+      if (role === 'barber' && currentUser?.barberId && a.barberId !== currentUser.barberId) {
+        return false;
+      }
+      return true;
+    }).length;
+  }, [appointments, todayStr, role, currentUser]);
 
   const unreadNotificationsCount = useMemo(() => {
     return notifications.filter((n) => !n.read).length;
@@ -451,8 +628,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider
       value={{
+        currentUser,
+        isAuthenticated: Boolean(currentUser),
         role,
         switchRole,
+        login,
+        register,
+        logout,
+        quickDemoLogin,
         themeMode,
         isDark: themeMode === 'dark',
         themeTrigger,

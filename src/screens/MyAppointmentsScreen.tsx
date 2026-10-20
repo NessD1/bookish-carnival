@@ -12,20 +12,42 @@ import { AppointmentCard } from '../components/AppointmentCard';
 import { theme } from '../components/Theme';
 
 export const MyAppointmentsScreen: React.FC = () => {
-  const { appointments, openBookingModal } = useApp();
+  const { appointments, openBookingModal, currentUser, role } = useApp();
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
 
+  const clientAppointments = useMemo(() => {
+    if (role === 'client' && currentUser) {
+      const userMatches = appointments.filter((a) => {
+        if (currentUser.email && a.clientEmail?.toLowerCase() === currentUser.email.toLowerCase()) {
+          return true;
+        }
+        if (currentUser.phone && a.clientPhone === currentUser.phone) {
+          return true;
+        }
+        if (currentUser.name && a.clientName.toLowerCase() === currentUser.name.toLowerCase()) {
+          return true;
+        }
+        return false;
+      });
+      // If user has matches return them; if demo client like Lucas, return them
+      if (userMatches.length > 0) return userMatches;
+      // If newly registered client with no appointments yet, show empty list
+      return [];
+    }
+    return appointments;
+  }, [appointments, currentUser, role]);
+
   const upcomingList = useMemo(() => {
-    return appointments.filter(
+    return clientAppointments.filter(
       (a) => a.status === 'confirmed' || a.status === 'pending' || a.status === 'in-chair'
     );
-  }, [appointments]);
+  }, [clientAppointments]);
 
   const pastList = useMemo(() => {
-    return appointments.filter(
+    return clientAppointments.filter(
       (a) => a.status === 'completed' || a.status === 'cancelled'
     );
-  }, [appointments]);
+  }, [clientAppointments]);
 
   const activeList = tab === 'upcoming' ? upcomingList : pastList;
 

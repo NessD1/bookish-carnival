@@ -19,6 +19,8 @@ import { NotificationService } from '../services/notifications';
 
 export const SettingsScreen: React.FC = () => {
   const {
+    currentUser,
+    logout,
     role,
     switchRole,
     salonInfo,
@@ -153,14 +155,77 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.subtitle}>Configura el modo de la app, notificaciones y base de datos</Text>
         </View>
 
-        {/* Dual Mode Switcher Section */}
+        {/* User Account / Profile Card */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>MODO DE LA APLICACIÓN</Text>
+          <Text style={styles.sectionTitle}>CUENTA Y SESIÓN ACTUAL</Text>
+          <View style={styles.profileBox}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarEmoji}>
+                {role === 'admin' ? '👑' : role === 'barber' ? '💈' : '✂️'}
+              </Text>
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{currentUser?.name || 'Usuario Activo'}</Text>
+              <Text style={styles.profileEmail}>{currentUser?.email || 'Sin correo asociado'}</Text>
+              <View style={styles.roleTag}>
+                <Text style={styles.roleTagText}>
+                  {role === 'admin'
+                    ? '👑 Administrador'
+                    : role === 'barber'
+                    ? '💈 Barbero'
+                    : '✂️ Cliente'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.logoutBtn} onPress={() => logout()}>
+              <Ionicons name="log-out-outline" size={16} color={theme.colors.cancelled} />
+              <Text style={styles.logoutBtnText}>Salir</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 3-Role Mode Switcher Section */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>CAMBIAR MODO / ROL DE USUARIO</Text>
           <Text style={styles.sectionDesc}>
-            Alterna entre la consola de administración del Barbero / Dueño y la experiencia de reservas del cliente.
+            Selecciona el rol con el que deseas interactuar en la aplicación.
           </Text>
 
           <View style={styles.modeCardsRow}>
+            {/* Admin Console Option */}
+            <TouchableOpacity
+              style={[
+                styles.modeCard,
+                role === 'admin' && styles.modeCardActiveAdmin,
+              ]}
+              onPress={() => switchRole('admin')}
+              activeOpacity={0.8}
+            >
+              <View style={styles.modeIconCircle}>
+                <Ionicons
+                  name="shield-checkmark"
+                  size={20}
+                  color={role === 'admin' ? theme.colors.primary : theme.colors.textMuted}
+                />
+              </View>
+              <Text
+                style={[
+                  styles.modeName,
+                  role === 'admin' && { color: theme.colors.primaryLight },
+                ]}
+              >
+                👑 Administrador / Dueño
+              </Text>
+              <Text style={styles.modeSub}>
+                Caja total, equipo de barberos, servicios, base de clientes y configuración global
+              </Text>
+              {role === 'admin' && (
+                <View style={styles.activeCheck}>
+                  <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
+                </View>
+              )}
+            </TouchableOpacity>
+
             {/* Barber Console Option */}
             <TouchableOpacity
               style={[
@@ -172,9 +237,9 @@ export const SettingsScreen: React.FC = () => {
             >
               <View style={styles.modeIconCircle}>
                 <Ionicons
-                  name="calendar"
-                  size={22}
-                  color={role === 'barber' ? theme.colors.primary : theme.colors.textMuted}
+                  name="cut"
+                  size={20}
+                  color={role === 'barber' ? theme.colors.primaryLight : theme.colors.textMuted}
                 />
               </View>
               <Text
@@ -185,10 +250,12 @@ export const SettingsScreen: React.FC = () => {
               >
                 💈 Consola de Barbero
               </Text>
-              <Text style={styles.modeSub}>Agenda diaria, clientes, ingresos estimados y cambios de estado</Text>
+              <Text style={styles.modeSub}>
+                Agenda personal, mis ingresos, pasar a silla y mi horario de atención
+              </Text>
               {role === 'barber' && (
                 <View style={styles.activeCheck}>
-                  <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
+                  <Ionicons name="checkmark-circle" size={16} color={theme.colors.primaryLight} />
                 </View>
               )}
             </TouchableOpacity>
@@ -205,7 +272,7 @@ export const SettingsScreen: React.FC = () => {
               <View style={styles.modeIconCircle}>
                 <Ionicons
                   name="person"
-                  size={22}
+                  size={20}
                   color={role === 'client' ? theme.colors.secondary : theme.colors.textMuted}
                 />
               </View>
@@ -217,7 +284,9 @@ export const SettingsScreen: React.FC = () => {
               >
                 ✂️ Modo Cliente
               </Text>
-              <Text style={styles.modeSub}>Explora servicios, elige barbero, reserva turnos y revisa tus citas</Text>
+              <Text style={styles.modeSub}>
+                Explora servicios, conoce a los barberos, reserva turnos y revisa tus citas
+              </Text>
               {role === 'client' && (
                 <View style={styles.activeCheck}>
                   <Ionicons name="checkmark-circle" size={16} color={theme.colors.secondary} />
@@ -672,6 +741,73 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     lineHeight: 16,
   },
+  profileBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.md,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+    gap: 12,
+  },
+  profileAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatarEmoji: {
+    fontSize: 22,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+  },
+  profileEmail: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    marginTop: 1,
+  },
+  roleTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.surfaceElevated,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.full,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+  },
+  roleTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: theme.borderRadius.sm,
+  },
+  logoutBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.cancelled,
+  },
   modeCardsRow: {
     gap: 10,
   },
@@ -682,6 +818,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: theme.colors.surfaceBorder,
     position: 'relative',
+  },
+  modeCardActiveAdmin: {
+    borderColor: theme.colors.primary,
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
   },
   modeCardActiveBarber: {
     borderColor: theme.colors.primary,

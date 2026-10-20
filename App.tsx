@@ -16,14 +16,26 @@ import { ClientHomeScreen } from './src/screens/ClientHomeScreen';
 import { MyAppointmentsScreen } from './src/screens/MyAppointmentsScreen';
 import { ClientBarbersScreen } from './src/screens/ClientBarbersScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { theme } from './src/components/Theme';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
 const MainAppContent: React.FC = () => {
-  const { activeTab, isDark } = useApp();
+  const { activeTab, isDark, isAuthenticated } = useApp();
   // Preload Ionicons font asynchronously
   useFonts(Ionicons.font);
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <View style={[styles.appShell, { backgroundColor: theme.colors.background, borderColor: theme.colors.surfaceBorder }]}>
+          <AuthScreen />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const renderActiveScreen = () => {
     switch (activeTab) {

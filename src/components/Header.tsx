@@ -6,14 +6,55 @@ import { theme } from './Theme';
 
 export const Header: React.FC = () => {
   const {
+    currentUser,
     role,
     switchRole,
+    logout,
     salonInfo,
     unreadNotificationsCount,
     openNotificationModal,
     isDark,
     toggleTheme,
   } = useApp();
+
+  const handleNextRole = () => {
+    if (role === 'admin') switchRole('barber');
+    else if (role === 'barber') switchRole('client');
+    else switchRole('admin');
+  };
+
+  const handleLogout = () => {
+    logout();
+  };
+
+  const getRoleBadgeInfo = () => {
+    switch (role) {
+      case 'admin':
+        return {
+          title: '👑 Administrador',
+          color: theme.colors.primary,
+          sub: currentUser?.name || 'Gerencia y Control Total',
+          nextName: 'Barbero',
+        };
+      case 'barber':
+        return {
+          title: '💈 Panel de Barbero',
+          color: theme.colors.primaryLight,
+          sub: currentUser?.name || 'Mi Agenda y Turnos',
+          nextName: 'Cliente',
+        };
+      case 'client':
+      default:
+        return {
+          title: '✂️ Portal de Cliente',
+          color: theme.colors.secondary,
+          sub: currentUser?.name || 'Reservar Citas',
+          nextName: 'Admin',
+        };
+    }
+  };
+
+  const roleInfo = getRoleBadgeInfo();
 
   return (
     <View style={styles.container}>
@@ -60,38 +101,41 @@ export const Header: React.FC = () => {
               </View>
             )}
           </TouchableOpacity>
+
+          {/* Logout / Exit Button */}
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={handleLogout}
+            accessibilityLabel="Cerrar sesión"
+          >
+            <Ionicons name="log-out-outline" size={19} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
         </View>
       </View>
 
       {/* Role Switcher Banner */}
       <View style={styles.roleBanner}>
         <View style={styles.roleInfo}>
-          <Text style={styles.roleSubtext}>MODO ACTUAL</Text>
-          <Text style={styles.roleTitle}>
-            {role === 'barber' ? '💈 Panel de Barbero / Admin' : '✂️ Reservas para Clientes'}
+          <Text style={styles.roleSubtext}>ROL ACTIVO</Text>
+          <Text style={[styles.roleTitle, { color: roleInfo.color }]}>
+            {roleInfo.title}
+          </Text>
+          <Text style={styles.userNameText} numberOfLines={1}>
+            {roleInfo.sub}
           </Text>
         </View>
 
         <TouchableOpacity
           style={[
             styles.switchButton,
-            role === 'barber' ? styles.switchButtonBarber : styles.switchButtonClient,
+            { borderColor: roleInfo.color, backgroundColor: theme.colors.surfaceElevated },
           ]}
-          onPress={() => switchRole(role === 'barber' ? 'client' : 'barber')}
+          onPress={handleNextRole}
           activeOpacity={0.8}
         >
-          <Ionicons
-            name="swap-horizontal"
-            size={16}
-            color={role === 'barber' ? theme.colors.primary : theme.colors.secondary}
-          />
-          <Text
-            style={[
-              styles.switchButtonText,
-              { color: role === 'barber' ? theme.colors.primary : theme.colors.secondary },
-            ]}
-          >
-            Cambiar a {role === 'barber' ? 'Cliente' : 'Barbero'}
+          <Ionicons name="swap-horizontal" size={15} color={roleInfo.color} />
+          <Text style={[styles.switchButtonText, { color: roleInfo.color }]}>
+            Cambiar a {roleInfo.nextName}
           </Text>
         </TouchableOpacity>
       </View>
@@ -210,6 +254,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: theme.colors.textPrimary,
+  },
+  userNameText: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    marginTop: 1,
   },
   switchButton: {
     flexDirection: 'row',
